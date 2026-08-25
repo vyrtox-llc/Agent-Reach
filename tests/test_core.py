@@ -27,3 +27,17 @@ class TestAgentReach:
         report = eyes.doctor_report()
         assert isinstance(report, str)
         assert "Agent Reach" in report
+
+    def test_does_not_dispatch_can_handle_into_fetch(self):
+        """RSS/web matchers are unused by the public class; it is doctor-only."""
+        public = {
+            name
+            for name in dir(AgentReach)
+            if not name.startswith("_")
+        }
+        assert "doctor" in public
+        assert "doctor_report" in public
+        assert "read" not in public
+        assert "search" not in public
+        assert not hasattr(AgentReach, "read")
+        assert not hasattr(AgentReach, "search")

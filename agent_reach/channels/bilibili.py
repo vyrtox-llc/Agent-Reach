@@ -10,9 +10,9 @@ YouTube backend; it just no longer serves bilibili.
 """
 
 import json
-import urllib.request
 
 from agent_reach.probe import probe_command
+from agent_reach.utils import url as url_security
 
 from .base import Channel
 
@@ -23,11 +23,15 @@ _SEARCH_API = "https://api.bilibili.com/x/web-interface/search/all/v2?keyword=te
 
 def _search_api_ok() -> bool:
     """Return True if Bilibili search API responds with code 0."""
-    req = urllib.request.Request(_SEARCH_API, headers={"User-Agent": _UA})
     try:
-        with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
-            data = json.loads(resp.read())
-            return data.get("code") == 0
+        raw = url_security.fetch_pinned_bytes(
+            _SEARCH_API,
+            headers={"User-Agent": _UA},
+            timeout=_TIMEOUT,
+            max_bytes=1024 * 1024,
+        )
+        data = json.loads(raw)
+        return data.get("code") == 0
     except Exception:
         return False
 

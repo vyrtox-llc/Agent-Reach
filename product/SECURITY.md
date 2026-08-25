@@ -65,11 +65,11 @@ These are controls to keep. Tests exist. Phase work must not weaken them.
 
 ### dns-rebinding (high, glue) — Phase 2
 
-**Evidence.** `utils/url.py:47-84` and `transcribe.py:214-247` reject private **literal** IPs and a small host denylist, then skip DNS. `web.py:48-67` prefixes the URL onto `r.jina.ai`. `transcribe.py:250-270` hands the URL to yt-dlp after that check.
+**Evidence.** `utils/url.py` `pin_hostname` / `fetch_pinned_bytes` resolve DNS and refuse non-global A/AAAA. `web.py` prefixes the URL onto `r.jina.ai` then pins that fetch. `transcribe.py` DNS-pins hostnames then still hands the original URL to yt-dlp (residual TOCTOU).
 
 **Impact.** A hostname that later resolves to `169.254.169.254` or loopback can still be fetched by Jina or yt-dlp.
 
-**Fix.** Shared helper: resolve DNS, pin to global unicast, reconnect to that IP with TLS name intact (or fail closed). Apply to `normalize_public_http_url`, transcribe, V2EX, Xueqiu. Tests with a fake resolver. Alternative Pepe can pick: delete `WebChannel.read` and V2EX/Xueqiu in-process clients; skill uses `curl` only (moves SSRF to curl, which still needs a pinned wrapper if we care on shared hosts).
+**Fix.** Done: shared helper resolves DNS, pins to global unicast, connects to that IP with TLS name intact. Applied to web, V2EX, Xueqiu, Bilibili doctor probe. Transcribe rejects a bad first hop and still passes a hostname to yt-dlp (documented TOCTOU). Tests with a fake resolver.
 
 **Approve.** Mechanism (pin vs stop fetching). New helper is internal, not a public API, unless we export it.
 

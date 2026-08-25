@@ -12,6 +12,7 @@ reddit (#364) and xueqiu (#365).
 """
 
 import json
+import socket
 import ssl
 import subprocess
 from unittest.mock import patch
@@ -69,7 +70,13 @@ def test_get_json_retries_unexpected_tls_eof_with_bounded_curl():
         return_value=subprocess.CompletedProcess(
             ["curl"], 0, json.dumps(payload), ""
         ),
-    ) as run:
+    ) as run, patch.object(
+        v2.url_security.socket,
+        "getaddrinfo",
+        return_value=[
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("1.2.3.4", 443))
+        ],
+    ):
         assert v2._get_json("https://www.v2ex.com/api/topics/hot.json") == payload
 
     command = run.call_args.args[0]
@@ -79,6 +86,8 @@ def test_get_json_retries_unexpected_tls_eof_with_bounded_curl():
     assert "--location" not in command
     assert "--max-time" in command
     assert "--max-filesize" in command
+    assert "--resolve" in command
+    assert command[command.index("--resolve") + 1] == "www.v2ex.com:443:1.2.3.4"
     assert command[-2:] == [
         "--url",
         "https://www.v2ex.com/api/topics/hot.json",
@@ -125,13 +134,13 @@ def test_get_json_does_not_fallback_for_plain_error_text():
     ],
 )
 def test_get_json_rejects_non_api_targets_before_network(url):
-    with patch.object(v2.urllib.request, "urlopen") as urlopen, patch.object(
+    with patch.object(v2.url_security, "fetch_pinned_bytes") as fetch, patch.object(
         v2.subprocess, "run"
     ) as run:
         with pytest.raises(ValueError, match="V2EX HTTPS API"):
             v2._get_json(url)
 
-    urlopen.assert_not_called()
+    fetch.assert_not_called()
     run.assert_not_called()
 
 
@@ -147,6 +156,12 @@ def test_check_is_healthy_when_native_curl_recovers_tls_eof():
         v2.subprocess,
         "run",
         return_value=subprocess.CompletedProcess(["curl"], 0, "[]", ""),
+    ), patch.object(
+        v2.url_security.socket,
+        "getaddrinfo",
+        return_value=[
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("1.2.3.4", 443))
+        ],
     ):
         status, _message = ch.check()
 

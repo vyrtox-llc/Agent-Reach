@@ -607,6 +607,26 @@ class TestOrchestrator:
 
 
 class TestDownloadAudioSafety:
+    @pytest.fixture(autouse=True)
+    def _public_dns(self, monkeypatch):
+        import socket
+
+        def fake_getaddrinfo(host, port, *args, **kwargs):
+            resolved_port = port if isinstance(port, int) else 0
+            return [
+                (
+                    socket.AF_INET,
+                    socket.SOCK_STREAM,
+                    6,
+                    "",
+                    ("93.184.216.34", resolved_port or 0),
+                )
+            ]
+
+        monkeypatch.setattr(
+            "agent_reach.utils.url.socket.getaddrinfo", fake_getaddrinfo
+        )
+
     def test_rejects_download_that_exceeds_limit(
         self, monkeypatch, tmp_path
     ):
@@ -666,17 +686,26 @@ class TestDownloadAudioSafety:
 
         assert captured["cmd"][-1] == "youtu.be/abc123"
 
-    def test_does_not_dns_resolve_public_hostnames(self, monkeypatch, tmp_path):
-        import socket
+    def test_dns_pins_public_hostname_before_yt_dlp(self, monkeypatch, tmp_path):
+        seen = []
 
-        monkeypatch.setattr(tr, "_require", lambda binary: None)
+        def fake_getaddrinfo(host, port, *args, **kwargs):
+            seen.append(host)
+            resolved_port = port if isinstance(port, int) else 0
+            return [
+                (
+                    __import__("socket").AF_INET,
+                    __import__("socket").SOCK_STREAM,
+                    6,
+                    "",
+                    ("93.184.216.34", resolved_port or 0),
+                )
+            ]
+
         monkeypatch.setattr(
-            socket,
-            "getaddrinfo",
-            lambda *args, **kwargs: (_ for _ in ()).throw(
-                AssertionError("public hostnames should not be DNS-resolved here")
-            ),
+            "agent_reach.utils.url.socket.getaddrinfo", fake_getaddrinfo
         )
+        monkeypatch.setattr(tr, "_require", lambda binary: None)
         captured = {}
 
         def fake_run(cmd, timeout=600):
@@ -687,7 +716,34 @@ class TestDownloadAudioSafety:
 
         tr.download_audio("https://youtu.be/abc123", tmp_path)
 
+        assert "youtu.be" in seen
         assert captured["cmd"][-1] == "https://youtu.be/abc123"
+
+    def test_rejects_hostname_that_resolves_to_metadata(self, monkeypatch, tmp_path):
+        def fake_getaddrinfo(host, port, *args, **kwargs):
+            resolved_port = port if isinstance(port, int) else 0
+            return [
+                (
+                    __import__("socket").AF_INET,
+                    __import__("socket").SOCK_STREAM,
+                    6,
+                    "",
+                    ("169.254.169.254", resolved_port or 0),
+                )
+            ]
+
+        monkeypatch.setattr(
+            "agent_reach.utils.url.socket.getaddrinfo", fake_getaddrinfo
+        )
+        monkeypatch.setattr(tr, "_require", lambda binary: None)
+
+        def should_not_run(*args, **kwargs):
+            raise AssertionError("yt-dlp must not run for a rebinding hostname")
+
+        monkeypatch.setattr(tr, "_run", should_not_run)
+
+        with pytest.raises(tr.TranscribeError, match="private|internal|SSRF"):
+            tr.download_audio("https://evil.example/a.mp3", tmp_path)
 
     # The C resolver behind yt-dlp accepts the full inet_aton grammar, so a
     # canonical dotted-quad check alone lets loopback and the cloud metadata

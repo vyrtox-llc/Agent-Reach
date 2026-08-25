@@ -1,9 +1,7 @@
 # -*- coding: utf-8 -*-
 """Web — any URL via Jina Reader. Always available."""
 
-import urllib.request
-
-from agent_reach.utils.url import normalize_public_http_url
+from agent_reach.utils import url as url_security
 
 from .base import Channel
 
@@ -47,18 +45,14 @@ class WebChannel(Channel):
 
     def read(self, url: str) -> str:
         """通过 Jina Reader 读取网页，返回 Markdown 全文。"""
-        url = normalize_public_http_url(url)
+        url = url_security.normalize_public_http_url(url)
         jina_url = f"https://r.jina.ai/{url}"
-        req = urllib.request.Request(
+        body = url_security.fetch_pinned_bytes(
             jina_url,
             headers={"User-Agent": _UA, "Accept": "text/plain"},
+            timeout=30,
+            max_bytes=_MAX_RESPONSE_BYTES,
         )
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            body = resp.read(_MAX_RESPONSE_BYTES + 1)
-        if len(body) > _MAX_RESPONSE_BYTES:
-            raise ValueError(
-                f"Jina Reader response exceeds {_MAX_RESPONSE_BYTES} byte limit"
-            )
         if _is_antibot_page(body):
             raise RuntimeError(
                 "Jina Reader 返回了反爬验证页，未获取到目标内容；"

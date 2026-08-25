@@ -116,36 +116,19 @@ class TestV2EXChannel:
         assert not ch.can_handle("https://reddit.com/r/Python")
 
     def test_check_ok_when_api_reachable(self, monkeypatch):
-        import urllib.request
-
-        class FakeResponse:
-            status = 200
-
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *args):
-                pass
-
-            def read(self, _size=-1):
-                return b"[]"
-
         monkeypatch.setattr(
-            urllib.request,
-            "urlopen",
-            lambda req, timeout=None: FakeResponse(),
+            "agent_reach.utils.url.fetch_pinned_bytes",
+            lambda *args, **kwargs: b"[]",
         )
         status, msg = V2EXChannel().check()
         assert status == "ok"
         assert "公开 API 可用" in msg
 
     def test_check_warn_when_api_unreachable(self, monkeypatch):
-        import urllib.request
-
-        def raise_error(req, timeout=None):
+        def raise_error(*args, **kwargs):
             raise URLError("connection refused")
 
-        monkeypatch.setattr(urllib.request, "urlopen", raise_error)
+        monkeypatch.setattr("agent_reach.utils.url.fetch_pinned_bytes", raise_error)
         status, msg = V2EXChannel().check()
         assert status == "warn"
         assert "失败" in msg
@@ -180,9 +163,8 @@ class TestV2EXChannel:
             xueqiu_mod, "_load_cookies_from_config", fake_load
         )
         monkeypatch.setattr(
-            xueqiu_mod._opener,
-            "open",
-            lambda req, timeout=None: FakeResponse(),
+            "agent_reach.utils.url.fetch_pinned_bytes",
+            lambda *args, **kwargs: json.dumps(fake_response_data).encode(),
         )
 
         status, _ = XueqiuChannel().check(supplied_config)
@@ -230,7 +212,7 @@ class TestV2EXChannel:
             def read(self, _size=-1):
                 return json.dumps(fake_data).encode()
 
-        monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=None: FakeResponse())
+        monkeypatch.setattr("agent_reach.utils.url.fetch_pinned_bytes", lambda *a, **k: FakeResponse().read())
         topics = V2EXChannel().get_hot_topics(limit=5)
         assert len(topics) == 2
         assert topics[0]["id"] == 111
@@ -254,7 +236,7 @@ class TestV2EXChannel:
             def __exit__(self, *_): pass
             def read(self, _size=-1): return json.dumps(fake_data).encode()
 
-        monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=None: FakeResponse())
+        monkeypatch.setattr("agent_reach.utils.url.fetch_pinned_bytes", lambda *a, **k: FakeResponse().read())
         topics = V2EXChannel().get_hot_topics(limit=3)
         assert len(topics) == 3
 
@@ -272,7 +254,7 @@ class TestV2EXChannel:
             def __exit__(self, *_): pass
             def read(self, _size=-1): return json.dumps(fake_data).encode()
 
-        monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=None: FakeResponse())
+        monkeypatch.setattr("agent_reach.utils.url.fetch_pinned_bytes", lambda *a, **k: FakeResponse().read())
         topics = V2EXChannel().get_hot_topics(limit=1)
         assert len(topics[0]["content"]) == 200
 
@@ -300,7 +282,7 @@ class TestV2EXChannel:
             def __exit__(self, *_): pass
             def read(self, _size=-1): return json.dumps(fake_data).encode()
 
-        monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=None: FakeResponse())
+        monkeypatch.setattr("agent_reach.utils.url.fetch_pinned_bytes", lambda *a, **k: FakeResponse().read())
         topics = V2EXChannel().get_node_topics("python")
         assert len(topics) == 1
         assert topics[0]["id"] == 333
@@ -348,13 +330,12 @@ class TestV2EXChannel:
             def __exit__(self, *_): pass
             def read(self, _size=-1): return json.dumps(self._payload).encode()
 
-        def fake_urlopen(req, timeout=None):
-            url = req.full_url
+        def fake_fetch(url, **kwargs):
             if "replies" in url:
-                return FakeResponse(replies_data)
-            return FakeResponse(topic_data)
+                return json.dumps(replies_data).encode()
+            return json.dumps(topic_data).encode()
 
-        monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+        monkeypatch.setattr("agent_reach.utils.url.fetch_pinned_bytes", fake_fetch)
         result = V2EXChannel().get_topic(999)
 
         assert result["id"] == 999
@@ -387,12 +368,12 @@ class TestV2EXChannel:
             def __exit__(self, *_): pass
             def read(self, _size=-1): return json.dumps(self._payload).encode()
 
-        def fake_urlopen(req, timeout=None):
-            if "replies" in req.full_url:
-                return FakeResponse([])
-            return FakeResponse(topic_data)
+        def fake_fetch(url, **kwargs):
+            if "replies" in url:
+                return json.dumps([]).encode()
+            return json.dumps(topic_data).encode()
 
-        monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+        monkeypatch.setattr("agent_reach.utils.url.fetch_pinned_bytes", fake_fetch)
         result = V2EXChannel().get_topic(1)
         assert result["replies"] == []
 
@@ -423,7 +404,7 @@ class TestV2EXChannel:
             def __exit__(self, *_): pass
             def read(self, _size=-1): return json.dumps(fake_user).encode()
 
-        monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=None: FakeResponse())
+        monkeypatch.setattr("agent_reach.utils.url.fetch_pinned_bytes", lambda *a, **k: FakeResponse().read())
         user = V2EXChannel().get_user("alice")
 
         assert user["id"] == 42
@@ -478,7 +459,7 @@ class TestXueqiuChannel:
             def read(self):
                 return json.dumps(fake_response_data).encode()
 
-        monkeypatch.setattr(xueqiu_mod._opener, "open", lambda req, timeout=None: FakeResponse())
+        monkeypatch.setattr("agent_reach.utils.url.fetch_pinned_bytes", lambda *a, **k: FakeResponse().read())
         status, msg = XueqiuChannel().check()
         assert status == "ok"
         assert "公开 API 可用" in msg
@@ -488,10 +469,10 @@ class TestXueqiuChannel:
 
         monkeypatch.setattr(xueqiu_mod, "_cookies_initialized", True)
 
-        def raise_error(req, timeout=None):
+        def raise_error(*args, **kwargs):
             raise URLError("connection refused")
 
-        monkeypatch.setattr(xueqiu_mod._opener, "open", raise_error)
+        monkeypatch.setattr("agent_reach.utils.url.fetch_pinned_bytes", raise_error)
         status, msg = XueqiuChannel().check()
         assert status == "warn"
         assert "失败" in msg
@@ -540,7 +521,7 @@ class TestXueqiuChannel:
             def read(self):
                 return json.dumps(fake_data).encode()
 
-        monkeypatch.setattr(xueqiu_mod._opener, "open", lambda req, timeout=None: FakeResponse())
+        monkeypatch.setattr("agent_reach.utils.url.fetch_pinned_bytes", lambda *a, **k: FakeResponse().read())
         quote = XueqiuChannel().get_stock_quote("SH600519")
         assert quote["symbol"] == "SH600519"
         assert quote["name"] == "贵州茅台"
@@ -574,7 +555,7 @@ class TestXueqiuChannel:
             def read(self):
                 return json.dumps(fake_data).encode()
 
-        monkeypatch.setattr(xueqiu_mod._opener, "open", lambda req, timeout=None: FakeResponse())
+        monkeypatch.setattr("agent_reach.utils.url.fetch_pinned_bytes", lambda *a, **k: FakeResponse().read())
         results = XueqiuChannel().search_stock("茅台", limit=5)
         assert len(results) == 2
         assert results[0]["symbol"] == "SH600519"
@@ -619,7 +600,7 @@ class TestXueqiuChannel:
             def read(self):
                 return json.dumps(fake_data).encode()
 
-        monkeypatch.setattr(xueqiu_mod._opener, "open", lambda req, timeout=None: FakeResponse())
+        monkeypatch.setattr("agent_reach.utils.url.fetch_pinned_bytes", lambda *a, **k: FakeResponse().read())
         posts = XueqiuChannel().get_hot_posts(limit=10)
         assert len(posts) == 2
         assert posts[0]["id"] == 111
@@ -661,7 +642,7 @@ class TestXueqiuChannel:
             def read(self):
                 return json.dumps(fake_data).encode()
 
-        monkeypatch.setattr(xueqiu_mod._opener, "open", lambda req, timeout=None: FakeResponse())
+        monkeypatch.setattr("agent_reach.utils.url.fetch_pinned_bytes", lambda *a, **k: FakeResponse().read())
         posts = XueqiuChannel().get_hot_posts(limit=3)
         assert len(posts) == 3
 
@@ -694,7 +675,7 @@ class TestXueqiuChannel:
             def read(self):
                 return json.dumps(fake_data).encode()
 
-        monkeypatch.setattr(xueqiu_mod._opener, "open", lambda req, timeout=None: FakeResponse())
+        monkeypatch.setattr("agent_reach.utils.url.fetch_pinned_bytes", lambda *a, **k: FakeResponse().read())
         stocks = XueqiuChannel().get_hot_stocks(limit=10, stock_type=10)
         assert len(stocks) == 3
         assert stocks[0]["symbol"] == "SH600519"
@@ -731,13 +712,13 @@ class TestXueqiuChannel:
             ),
         )
 
-        # Patch opener so no real HTTP call is made
-        class FakeResp:
-            def __enter__(self): return self
-            def __exit__(self, *_): pass
-            def read(self): return b'{"data":{"items":[]}}'
-
-        monkeypatch.setattr(xq_mod._opener, "open", lambda req, timeout=None: FakeResp())
+        # Config cookies are enough; homepage fetch must not run.
+        monkeypatch.setattr(
+            "agent_reach.utils.url.fetch_pinned_bytes",
+            lambda *args, **kwargs: (_ for _ in ()).throw(
+                AssertionError("homepage fetch must not run when config cookies load")
+            ),
+        )
 
         xq_mod._ensure_cookies()
         assert xq_mod._cookies_initialized is True
@@ -755,14 +736,11 @@ class TestXueqiuChannel:
         )
         requested = []
 
-        class FakeResponse:
-            pass
+        def fake_fetch(url, **kwargs):
+            requested.append(url)
+            return b""
 
-        monkeypatch.setattr(
-            xueqiu_mod._opener,
-            "open",
-            lambda req, timeout=None: requested.append(req.full_url) or FakeResponse(),
-        )
+        monkeypatch.setattr("agent_reach.utils.url.fetch_pinned_bytes", fake_fetch)
         xueqiu_mod._ensure_cookies()
 
         assert requested == ["https://xueqiu.com"]
@@ -775,17 +753,12 @@ class TestXueqiuChannel:
         monkeypatch.setattr(xueqiu_mod, "_cookies_initialized", True)
         captured = {}
 
-        class FakeResp:
-            def __enter__(self): return self
-            def __exit__(self, *_): pass
-            def read(self): return b'{"data":{"items":[]}}'
+        def fake_fetch(url, *, headers=None, **kwargs):
+            captured["ua"] = (headers or {}).get("User-Agent")
+            captured["referer"] = (headers or {}).get("Referer")
+            return b'{"data":{"items":[]}}'
 
-        def fake_open(req, timeout=None):
-            captured["ua"] = req.get_header("User-agent")
-            captured["referer"] = req.get_header("Referer")
-            return FakeResp()
-
-        monkeypatch.setattr(xueqiu_mod._opener, "open", fake_open)
+        monkeypatch.setattr("agent_reach.utils.url.fetch_pinned_bytes", fake_fetch)
         xueqiu_mod._get_json("https://stock.xueqiu.com/v5/stock/batch/quote.json?symbol=SH000001")
 
         assert captured["referer"] == "https://xueqiu.com/"
@@ -1752,6 +1725,8 @@ class TestRSSChannel:
         assert ch.can_handle("https://example.com/feed.xml")
         assert ch.can_handle("https://blog.example.com/atom.xml")
         assert ch.can_handle("https://example.com/index.atom")
+        assert ch.can_handle("https://example.com/?feed=rss2")
+        assert ch.can_handle("https://blog.example.com/feeds/posts/default")
 
     def test_can_handle_is_case_insensitive(self):
         from agent_reach.channels.rss import RSSChannel

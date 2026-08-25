@@ -36,9 +36,11 @@ twitter --help
 1. 安装 [Cookie-Editor](https://cookie-editor.com/) 浏览器扩展
 2. 登录 x.com
 3. 点击 Cookie-Editor 图标 → Export → Header String
-4. 运行配置命令：
+4. 在本机终端导入（隐藏提示，或 stdin）。不要把 Cookie 贴进对话，也不要放在命令行参数里：
 
 ```bash
+pbpaste | agent-reach configure twitter-cookies --stdin
+# 或本机 TTY 隐藏提示：
 agent-reach configure twitter-cookies
 ```
 

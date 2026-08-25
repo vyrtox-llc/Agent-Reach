@@ -596,6 +596,50 @@ def test_watch_uses_read_only_config(monkeypatch, capsys):
     assert "全部正常" in capsys.readouterr().out
 
 
+def test_watch_github_warn_is_not_an_issue(monkeypatch, capsys):
+    """By-design unverified warn must not block the healthy watch summary."""
+
+    class _Release:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return {"tag_name": "v0.0.0", "body": ""}
+
+    monkeypatch.setattr(
+        "agent_reach.doctor.check_all",
+        lambda _config: {
+            "web": {
+                "status": "ok",
+                "name": "网页",
+                "message": "可用",
+                "tier": 0,
+                "backends": ["Jina Reader"],
+                "active_backend": "Jina Reader",
+            },
+            "github": {
+                "status": "warn",
+                "name": "GitHub",
+                "message": "gh 已安装，未做 live 验证",
+                "tier": 0,
+                "backends": ["gh"],
+                "active_backend": None,
+            },
+        },
+    )
+    monkeypatch.setattr(
+        cli,
+        "_github_get_with_retry",
+        lambda *_args, **_kwargs: (_Release(), None, 1),
+    )
+
+    cli._cmd_watch()
+    out = capsys.readouterr().out
+    assert "全部正常" in out
+    assert "[!]" not in out
+    assert "未验证：GitHub" in out
+
+
 def _docker_result(args, returncode=0, stdout="", stderr=""):
     return subprocess.CompletedProcess(args, returncode, stdout, stderr)
 
@@ -1293,6 +1337,48 @@ def test_install_dry_run_does_not_create_agent_reach_directory(
     )
 
     assert not (isolated_home / ".agent-reach").exists()
+
+
+def test_install_system_dry_run_prints_blast_radius(monkeypatch, capsys):
+    monkeypatch.setattr(cli, "_install_system_deps_dryrun", lambda: None)
+    monkeypatch.setattr("agent_reach.doctor.check_all", lambda _config: {})
+    monkeypatch.setattr("agent_reach.doctor.format_report", lambda _results: "report")
+
+    cli._cmd_install(
+        Namespace(
+            env="local",
+            proxy="",
+            system=True,
+            safe=False,
+            dry_run=True,
+            channels="",
+        )
+    )
+
+    out = capsys.readouterr().out
+    assert "~/.claude/skills" in out
+    assert "~/.openclaw/skills" in out
+    assert "mcporter" in out
+
+
+def test_install_check_only_does_not_print_system_blast(monkeypatch, capsys):
+    monkeypatch.setattr("agent_reach.doctor.check_all", lambda _config: {})
+    monkeypatch.setattr("agent_reach.doctor.format_report", lambda _results: "report")
+
+    cli._cmd_install(
+        Namespace(
+            env="local",
+            proxy="",
+            system=False,
+            safe=False,
+            dry_run=False,
+            channels="",
+        )
+    )
+
+    out = capsys.readouterr().out
+    assert "--system blast radius" not in out
+    assert "Skill installed" not in out
 
 
 def test_uninstall_warns_about_opt_in_legacy_credential_copies(

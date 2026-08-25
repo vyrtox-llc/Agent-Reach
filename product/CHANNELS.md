@@ -80,18 +80,17 @@ No channel is deleted in this conversion unless Pepe later asks. Gating is skill
 ### web (`channels/web.py`)
 
 - `can_handle` is always True (fallback). `check` always ok, no network.
-- `read()` hits Jina via urllib after `normalize_public_http_url` (no DNS pin).
+- `read()` hits Jina via DNS-pinned `fetch_pinned_bytes` after `normalize_public_http_url`.
 - Skill uses curl. Product path can ignore `read()` if we delete it in Phase 2.
 
 ### rss (`channels/rss.py`)
 
 - Doctor: import feedparser. Skill: `python3 -c "import feedparser..."`.
-- `can_handle` substring: `/feed`, `/rss`, `.xml`, `atom`. Unused by core.
+- `can_handle` is path/query based (not substring). Unused by core. Doctor-only class.
 
 ### v2ex (`channels/v2ex.py`)
 
-- Owned public API client. Hardcoded HTTPS. User-Agent `agent-reach/1.0` in skill curl example (`SKILL.md:73`).
-- Phase 2: pin or skill-only curl.
+- Owned public API client. DNS-pinned urllib plus curl `--resolve` TLS fallback.
 
 ### twitter (`channels/twitter.py`)
 

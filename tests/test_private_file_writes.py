@@ -313,6 +313,20 @@ def test_xhs_docker_success_via_configure_command_does_not_exit(
     assert "Cookies written to" in capsys.readouterr().out
 
 
+def test_xhs_header_string_cookies_are_secure_and_httponly(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr("shutil.which", lambda _name: None)
+
+    assert cli._configure_xhs_cookies("web_session=xhs-secret") is True
+    saved = json.loads(
+        (tmp_path / ".agent-reach" / "xhs-cookies.json").read_text(encoding="utf-8")
+    )
+    assert saved[0]["httpOnly"] is True
+    assert saved[0]["secure"] is True
+
+
 def test_xhs_docker_failure_via_configure_command_exits_one(
     monkeypatch, capsys
 ):

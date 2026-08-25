@@ -83,11 +83,11 @@ Frozen unless Pepe reopens. Date: 2026-08-13. Basis: security audit + repo inspe
 
 ## ADR-008 — SSRF: DNS-pin or stop fetching inside this repo
 
-**Decision.** Phase 2 either (1) resolve DNS and pin to global unicast before Jina/yt-dlp/V2EX/Xueqiu, or (2) delete in-process fetch and let the skill call curl/yt-dlp, with pin on anything we still wrap.
+**Decision.** Phase 2 uses **DNS-pin** (option 1). Keep `WebChannel.read`. Our urllib (web, v2ex, xueqiu, bilibili doctor probe) connects to a pinned global-unicast IP with the original SNI/Host. yt-dlp/transcribe re-resolves immediately before exec and rejects a non-global first hop; the URL passed to yt-dlp stays a hostname (residual TOCTOU; yt-dlp has no IP+Host bind here). Do not export `AgentReach.read`.
 
-**Why.** Current check is literal IPs + denylist, then skip DNS (`utils/url.py`, `transcribe.py`). Hostname rebinding is the hole.
+**Why.** Current check was literal IPs + denylist, then skip DNS (`utils/url.py`, `transcribe.py`). Hostname rebinding is the hole. Pepe authorized the pick on 2026-08-24 ("address risks first before continuing with best decisions").
 
-**Consequences.** Pepe picks mechanism. Do not ship a half-pin that still hands a hostname to yt-dlp.
+**Consequences.** Fail closed if **any** A/AAAA is not globally routable (mixed public+private answers are rejected). Dual-stack: try pinned IPs in resolver order on connection failure only. Do not claim IP+Host bind for yt-dlp.
 
 ---
 

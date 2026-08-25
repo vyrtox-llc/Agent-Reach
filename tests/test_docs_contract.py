@@ -177,3 +177,29 @@ def test_commercial_github_row_before_twitter():
         twitter = text.find("**Twitter")
         assert github != -1 and twitter != -1, relative
         assert github < twitter, relative
+
+
+def test_cookie_docs_have_no_paste_to_agent_happy_path():
+    files = (
+        "docs/cookie-export.md",
+        "docs/install.md",
+        "agent_reach/guides/setup-twitter.md",
+        "agent_reach/guides/setup-xiaohongshu.md",
+        "agent_reach/skill/SKILL.md",
+        "agent_reach/skill/SKILL_en.md",
+    )
+    forbidden = (
+        "Paste the result to your Agent",
+        "Here are my Twitter cookies",
+        "Here are my XHS cookies",
+        "用户只需提供 cookies",
+        "paste it to me",
+    )
+    for relative in files:
+        text = _read(relative)
+        for phrase in forbidden:
+            assert phrase not in text, f"{relative}: {phrase}"
+    export = _read("docs/cookie-export.md")
+    assert "--stdin" in export
+    assert 'agent-reach configure twitter-cookies "' not in export
+    assert "agent-reach configure twitter-cookies '" not in export

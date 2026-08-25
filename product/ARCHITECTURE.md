@@ -47,7 +47,7 @@ Evidence:
 | Commercial set | All 15 marketed equally; README unlocks GitHub writes | Default story is GitHub + Exa + YouTube + RSS/Jina. Others gated. |
 | Secrets | YAML 0600; docs say paste cookies to the agent | Keychain for product secrets. Cookie path is stdin/getpass, power-user only. |
 | GitHub policy | Skill includes create/fork (`skill/references/dev.md`) | Read-only default + enforcement wrapper (Phase 4). |
-| SSRF | Literal IP denylist, skip DNS (`utils/url.py:47-84`) | DNS resolve + pin to global unicast, or delete in-process fetch. |
+| SSRF | Literal IP denylist + DNS-pin to global unicast (`utils/url.py`) | Residual TOCTOU only on yt-dlp hostname exec. |
 | Doctor signal | 8 channels never `ok` by design | Structured status: `ok` / `ready-unverified` / `missing`. Never run cookie-refreshing CLIs. |
 | Install docs | README one-liner can still lead agents to `--system` | Check-only is the only copy-paste. `--system` has a blast-radius block. |
 | Deps | Ranges in `pyproject.toml:30-37`; `constraints.txt` is CI-only | Default install uses `-c constraints.txt`. |
