@@ -80,24 +80,24 @@ Branch from latest main. Do not bump version (`1.5.0`). Do not add runtime deps.
 
 ## Phase 2 — Security hardening
 
-Pepe must pick F5.1 (DNS-pin vs stop fetch) before fetch code. Do not add `--i-understand-system` unless asked.
+Pepe picked F5.1: DNS-pin (ADR-008). Do not add `--i-understand-system` unless asked.
 
-- [ ] F4.1 Cookie-export + guides: stdin/getpass only
-- [ ] F4.2 Documented configure path is `--stdin` / TTY getpass
-- [ ] F4.3 XHS header-string `secure`/`httpOnly` true
-- [ ] F4.6 Positional secrets: docs + warning only unless Pepe approves removal
-- [ ] F2.7 `--system` prints blast radius (print-only unless flag approved)
-- [ ] F5.1 Mechanism picked and applied
-- [ ] F5.2 WebChannel.read pinned or gone
-- [ ] F5.3 V2EX pinned or skill curl
-- [ ] F5.4 Xueqiu pinned or stopped
-- [ ] F5.5 transcribe / yt-dlp URL check
-- [ ] F5.6 RSS `can_handle` tightened or marked unused
-- [ ] F3.5 `watch` does not treat by-design `warn` as broken
-- [ ] F11.4 DNS-pin, cookie-paste grep, XHS flags, `--system` print tests
-- [ ] `pytest tests/ -v` green
+- [x] F4.1 Cookie-export + guides: stdin/getpass only
+- [x] F4.2 Documented configure path is `--stdin` / TTY getpass
+- [x] F4.3 XHS header-string `secure`/`httpOnly` true
+- [x] F4.6 Positional secrets: docs + warning only unless Pepe approves removal
+- [x] F2.7 `--system` prints blast radius (print-only unless flag approved)
+- [x] F5.1 Mechanism picked and applied (DNS-pin)
+- [x] F5.2 WebChannel.read pinned (method kept)
+- [x] F5.3 V2EX pinned (urllib + curl `--resolve`)
+- [x] F5.4 Xueqiu pinned (CookieJar kept, power-user)
+- [x] F5.5 transcribe / yt-dlp first-hop DNS-pin (hostname still passed; TOCTOU documented)
+- [x] F5.6 RSS `can_handle` tightened or marked unused
+- [x] F3.5 `watch` does not treat by-design `warn` as broken
+- [x] F11.4 cookie-paste grep, XHS flags, `--system` print, DNS-pin tests
+- [x] `pytest tests/ -v` green for the Phase 2 slice
 
-**Exit:** No documented cookie-in-chat happy path. `--system` is loud. In-process fetch DNS-pins or is gone. XHS header-string cookies not marked insecure.
+**Exit:** No documented cookie-in-chat happy path. `--system` is loud. In-process fetch DNS-pins. XHS header-string cookies not marked insecure.
 
 ---
 

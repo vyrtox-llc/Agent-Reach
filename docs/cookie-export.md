@@ -1,7 +1,10 @@
 # Cookie Export Guide — For Server Users
 
-Your Agent is on a server and can't access your browser directly.
-Here's how to export cookies from your local computer — **fastest method first**.
+Your Agent is on a server and cannot access your browser. Export cookies on
+your laptop, then pipe them into the CLI on the server. **Never paste session
+cookies into agent chat.**
+
+Bilibili cookie import is power-user optional, not a commercial path.
 
 ## Method 1: Cookie-Editor Extension (Recommended — 30 seconds per site)
 
@@ -14,17 +17,20 @@ Here's how to export cookies from your local computer — **fastest method first
 
 4. Click **Export** → **Header String**
 
-5. Paste the result to your Agent
+5. On the machine that runs Agent Reach, pipe the export into stdin. Local TTY
+   getpass (hidden prompt, no `--stdin`) also works. Do not put the value in
+   argv or in chat.
 
-That's it! Your Agent will run:
 ```bash
+# Laptop → server over ssh, then:
+pbpaste | agent-reach configure twitter-cookies --stdin
+# or
+pbpaste | agent-reach configure xhs-cookies --stdin
+
+# Interactive local TTY (hidden prompt, nothing in shell history):
 agent-reach configure twitter-cookies
 agent-reach configure xhs-cookies
 ```
-
-Both commands use a hidden prompt. For non-interactive automation, send the
-same exported value through stdin and add `--stdin`; never place cookies in
-the process arguments.
 
 Twitter values saved by Agent Reach are used by `agent-reach doctor` only to
 check whether explicit credentials are present. Doctor does not run
@@ -37,13 +43,17 @@ Chrome. OpenCLI may use only an existing Chrome session explicitly controlled
 by the user. Agent Reach never logs the user in or reads XiaoHongShu browser
 cookies.
 
-### Sites to export:
+If xiaohongshu-mcp is running in Docker, configure may `docker cp` into that
+container and restart it. That talks to the local Docker socket (root-equivalent).
+Power-user only.
 
-| Site | URL to visit | What to tell Agent |
-|------|-------------|-------------------|
-| Twitter/X | https://x.com | "Here are my Twitter cookies: [paste]" |
-| XiaoHongShu | https://www.xiaohongshu.com | "Here are my XHS cookies: [paste]" |
-| Bilibili | https://www.bilibili.com | "Here are my Bilibili cookies: [paste]" |
+### Sites to export (run these yourself in a terminal)
+
+| Site | URL to visit | Command the **user** runs |
+|------|-------------|---------------------------|
+| Twitter/X | https://x.com | `pbpaste \| agent-reach configure twitter-cookies --stdin` |
+| XiaoHongShu | https://www.xiaohongshu.com | `pbpaste \| agent-reach configure xhs-cookies --stdin` |
+| Bilibili (power-user) | https://www.bilibili.com | Cookie-Editor export, then a local TTY configure path. Not commercial. |
 
 ## Method 2: Manual (No extension needed)
 
@@ -55,4 +65,5 @@ cookies.
 6. In the right panel, scroll to **Request Headers**
 7. Find the line starting with `Cookie:`
 8. Copy the entire value after `Cookie: `
-9. Paste to your Agent
+9. Pipe it to `--stdin` on the Agent Reach host (or use the hidden TTY prompt).
+   Do not paste it into agent chat.

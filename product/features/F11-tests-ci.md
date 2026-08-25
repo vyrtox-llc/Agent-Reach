@@ -74,7 +74,7 @@ Run `pytest tests/ -v` before any commit Pepe asks for. CI: `.github/workflows/p
 
 - **Parent:** F11
 - **Phase:** 2
-- **Status:** planned
+- **Status:** done
 - **Goal:** High findings stay closed.
 - **Files:** new `tests/test_dns_pin.py`; greps in `test_docs_contract.py`; XHS header-string tests in `tests/test_cookie_security.py` or `tests/test_private_file_writes.py`.
 - **Acceptance:** See F5.1, F4.1, F4.3, F2.7. `test_url_security.py` and cookie-boundary tests still pass.

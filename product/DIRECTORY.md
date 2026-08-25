@@ -14,7 +14,7 @@ Agent-Reach/
     doctor.py                # check_all → format_report
     cookie_extract.py        # browser-cookie3 path; twitter/xhs blocked
     probe.py                 # argv probes, no shell=True
-    transcribe.py            # yt-dlp + Whisper; literal-IP SSRF only
+    transcribe.py            # yt-dlp + Whisper; first-hop DNS-pin, hostname still passed
     channels/
       __init__.py            # ALL_CHANNELS: 15
       base.py                # can_handle + check

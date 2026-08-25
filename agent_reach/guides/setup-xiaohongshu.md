@@ -21,9 +21,11 @@ xiaohongshu-mcp 或存量工具：
 1. 在 Chrome 中安装 [Cookie-Editor](https://chromewebstore.google.com/detail/cookie-editor/hlkenndednhfkekhgcdicdfddnkalmdm) 扩展
 2. 用户自行在 xiaohongshu.com 准备要导出的会话
 3. 点击 Cookie-Editor 图标 → Export → Header String
-4. 把导出的字符串发给 Agent，运行：
+4. 在本机终端导入（不要把 Cookie 贴进对话）：
 
 ```bash
+pbpaste | agent-reach configure xhs-cookies --stdin
+# 或本机 TTY 隐藏提示：
 agent-reach configure xhs-cookies
 agent-reach doctor
 ```
@@ -31,7 +33,8 @@ agent-reach doctor
 该显式命令会保存/导入用户提供的 xiaohongshu.com 同域 Cookie 集；执行前请
 确认 Cookie 名称和范围。非 xiaohongshu.com 域 Cookie 会被忽略。
 
-如果 xiaohongshu-mcp 容器正在运行，配置命令会把 Cookie 导入容器；否则会写入
+如果 xiaohongshu-mcp 容器正在运行，配置命令会 `docker cp` 进容器并 restart。
+这会使用本机 Docker socket（等同 root），只适合 power-user。否则写入
 owner-only 的本地文件，并打印后续手工导入路径。
 
 ## 使用示例

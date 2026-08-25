@@ -307,6 +307,18 @@ def _cmd_install(args):
     if safe_mode:
         print("SAFE MODE — skipping automatic system changes")
         print()
+    else:
+        print("--system blast radius (explicitly approved):")
+        print("  May copy skill into existing roots:")
+        print("    ~/.claude/skills/agent-reach/")
+        print("    ~/.openclaw/skills/agent-reach/")
+        print("    ~/.config/opencode/skills/agent-reach/")
+        print("    ~/.agents/skills/agent-reach/")
+        print("    plus $OPENCLAW_HOME/.openclaw/skills/agent-reach/ when OPENCLAW_HOME is set")
+        print("    (creates ~/.agents/skills/agent-reach if none of those roots exist)")
+        print("  May apt-get (gh, nodejs, npm) or brew (gh, node)")
+        print("  May write mcporter config")
+        print()
 
     # Only a real installation may create persistent directories.
     if not dry_run and not safe_mode:
@@ -1683,8 +1695,10 @@ def _configure_xhs_cookies(value) -> bool:
                     "path": "/",
                     "expires": -1,
                     "size": len(name) + len(val),
-                    "httpOnly": False,
-                    "secure": False,
+                    # Fail closed: never mark synthesized cookies insecure.
+                    # xiaohongshu-mcp may ignore httpOnly; do not set false to "help" it.
+                    "httpOnly": True,
+                    "secure": True,
                     "session": True,
                     "sameSite": "Lax",
                 })
@@ -1753,7 +1767,13 @@ def _configure_xhs_cookies(value) -> bool:
     # Write cookies into the container
     tmp_path = None
     try:
-        # Write to temp file then docker cp
+        # Write to temp file then docker cp. docker cp uses the local Docker
+        # socket (root-equivalent). Power-user only; do not present this as
+        # the commercial cookie path.
+        print(
+            "  [!] docker cp talks to the local Docker socket "
+            "(root-equivalent). Power-user only."
+        )
         import tempfile
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             f.write(cookies_json)
@@ -2298,12 +2318,14 @@ def _cmd_watch():
     ok = sum(1 for r in results.values() if r["status"] == "ok")
     total = len(results)
 
-    # Find broken channels (were working, now broken)
+    # Find broken channels. By-design unverified warn is not an issue
+    # (github/twitter/xhs/reddit/exa/linkedin never return ok).
+    unverified = []
     for key, r in results.items():
         if r["status"] in ("off", "error"):
             issues.append(f"[X] {r['name']}：{r['message']}")
         elif r["status"] == "warn":
-            issues.append(f"[!] {r['name']}：{r['message']}")
+            unverified.append(r["name"])
 
     # Check for updates
     update_available = False
@@ -2324,12 +2346,22 @@ def _cmd_watch():
 
     # Output
     if not issues and not update_available:
-        print(f"Agent Reach: 全部正常 ({ok}/{total} 渠道可用，v{__version__} 已是最新)")
+        extra = ""
+        if unverified:
+            extra = f"；未验证：{'、'.join(unverified)}（warn≠关闭）"
+        print(
+            f"Agent Reach: 全部正常 ({ok}/{total} 个渠道已现场确认{extra}，"
+            f"v{__version__} 已是最新)"
+        )
         return
 
     print("Agent Reach 监控报告")
     print("=" * 40)
-    print(f"版本: v{__version__}  |  渠道: {ok}/{total}")
+    print(f"版本: v{__version__}  |  渠道: {ok}/{total} 已现场确认")
+
+    if unverified:
+        print()
+        print(f"  未验证（warn≠关闭）：{'、'.join(unverified)}")
 
     if issues:
         print()

@@ -2,7 +2,7 @@
 
 This directory is the execution package for turning Agent Reach from a working personal installer into a production-grade **local-first** product. It is not the runtime. Runtime stays in `agent_reach/`.
 
-**Current phase: 2 (not started).** Phase 1 landed on `phase-1-contract-hygiene`. Do not start Phase 2 from memory.
+**Current phase: 2 (DNS-pin in code on `phase-2-security-hardening`).** Phase 1 is on `main` via PR #1. F5.1 is DNS-pin (ADR-008). Do not merge to main until tests are green and Pepe asks.
 
 Canvas: [Agent Reach product plan](/Users/pepe/.cursor/projects/Users-pepe-Development-Agent-Reach/canvases/agent-reach-product-plan.canvas.tsx)
 
@@ -63,4 +63,4 @@ No edits to `agent_reach/` Python, CLI, tests, `pyproject.toml`, or skill runtim
 
 ## Next execution entry
 
-Phase 1 is on `phase-1-contract-hygiene`. Next is Phase 2 (`CHECKLIST.md`). Pepe must pick F5.1 (DNS-pin vs stop fetch) before fetch code. Do not add `--i-understand-system` unless asked.
+Phase 1 is on `main`. Phase 2 is on `phase-2-security-hardening` (DNS-pin picked). Do not add `--i-understand-system` unless asked.

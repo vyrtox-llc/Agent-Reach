@@ -9,6 +9,8 @@ import subprocess
 from argparse import Namespace
 from pathlib import Path
 
+from urllib.error import URLError
+
 import pytest
 
 import agent_reach.doctor as doctor
@@ -169,17 +171,12 @@ class TestDoctor:
 
     def test_doctor_json_keys_stable_real_channels(self, tmp_config, monkeypatch):
         monkeypatch.setattr("shutil.which", lambda _cmd: None)
-
-        import urllib.request
-        from urllib.error import URLError
-
-        def _no_net(*_a, **_k):
-            raise URLError("offline")
-
-        monkeypatch.setattr(urllib.request, "urlopen", _no_net)
+        monkeypatch.setattr(
+            "agent_reach.utils.url.fetch_pinned_bytes",
+            lambda *_a, **_k: (_ for _ in ()).throw(URLError("offline")),
+        )
         import agent_reach.channels.xueqiu as xueqiu_mod
         monkeypatch.setattr(xueqiu_mod, "_cookies_initialized", True)
-        monkeypatch.setattr(xueqiu_mod._opener, "open", _no_net)
 
         expected = {
             "status",

@@ -33,6 +33,7 @@ from urllib.parse import urlparse
 import requests
 
 from agent_reach.config import Config
+from agent_reach.utils.url import pin_hostname
 
 # Whisper API limit is 25MB; leave headroom for multipart overhead.
 SIZE_LIMIT_BYTES = 24 * 1024 * 1024
@@ -212,7 +213,13 @@ def _is_private_ip(value: str) -> bool:
 
 
 def _assert_safe_public_url(url: str) -> None:
-    """Reject literal local/internal URLs without DNS-resolving public hosts."""
+    """Reject local/internal URLs; DNS-pin hostnames before handing to yt-dlp.
+
+    Literal IP spellings stay DNS-free (``inet_aton`` grammar). Hostnames are
+    resolved immediately before exec. yt-dlp still receives the original
+    hostname, so a later rebind is residual TOCTOU — yt-dlp does not expose
+    an IP+Host bind we can use here.
+    """
     if "://" not in url:
         before_slash = url.split("/", 1)[0]
         if ":" in before_slash:
@@ -245,10 +252,24 @@ def _assert_safe_public_url(url: str) -> None:
         raise TranscribeError("SSRF blocked: internal host is not allowed")
     if _is_private_ip(host):
         raise TranscribeError("SSRF blocked: private/internal IP is not allowed")
+    if _literal_ip(host) is None:
+        port = parsed.port
+        if port is None:
+            port = 80 if parsed.scheme == "http" else 443
+        try:
+            pin_hostname(host, port)
+        except ValueError as exc:
+            raise TranscribeError(
+                "SSRF blocked: hostname resolved to a private/internal address"
+            ) from exc
 
 
 def download_audio(url: str, out_dir: Path) -> Path:
-    """Download audio with yt-dlp into out_dir; return the resulting file path."""
+    """Download audio with yt-dlp into out_dir; return the resulting file path.
+
+    First-hop DNS is pinned to global unicast. The URL passed to yt-dlp stays
+    a hostname, so this is not an IP+Host bind.
+    """
     _assert_safe_public_url(url)
     _require("yt-dlp")
     template = out_dir / "source.%(ext)s"

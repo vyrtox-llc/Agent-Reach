@@ -101,7 +101,10 @@ def test_check_never_reads_browser_cookie_store_implicitly(monkeypatch):
         def read(self):
             return b'{"data":{"quote":{"symbol":"SH601138","pe_ttm":38.1}}}'
 
-    monkeypatch.setattr(xq._opener, "open", lambda *_args, **_kwargs: FakeResponse())
+    monkeypatch.setattr(
+        "agent_reach.utils.url.fetch_pinned_bytes",
+        lambda *args, **kwargs: b'{"data":{"quote":{"symbol":"SH601138","pe_ttm":38.1}}}',
+    )
 
     status, _message = XueqiuChannel().check()
 

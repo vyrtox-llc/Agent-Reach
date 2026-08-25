@@ -5,8 +5,9 @@ import http.cookiejar
 import json
 import re
 import urllib.parse
-import urllib.request
 from typing import Any
+
+from agent_reach.utils import url as url_security
 
 from .base import Channel
 
@@ -17,14 +18,12 @@ _UA = (
 )
 _REFERER = "https://xueqiu.com/"
 _TIMEOUT = 10
+_MAX_RESPONSE_BYTES = 1024 * 1024
 _XUEQIU_HOME = "https://xueqiu.com"
 
 # --------------- cookie-aware HTTP helpers --------------- #
 
 _cookie_jar = http.cookiejar.CookieJar()
-_opener = urllib.request.build_opener(
-    urllib.request.HTTPCookieProcessor(_cookie_jar),
-)
 _cookies_initialized = False
 
 
@@ -88,19 +87,29 @@ def _ensure_cookies(config=None) -> None:
     # Fallback: visit homepage to pick up acw_tc anti-DDoS cookie.
     # This is not sufficient for authenticated APIs but avoids hard failures
     # on public endpoints that only need the session cookie.
-    req = urllib.request.Request(_XUEQIU_HOME, headers={"User-Agent": _UA})
-    _opener.open(req, timeout=_TIMEOUT)
+    url_security.fetch_pinned_bytes(
+        _XUEQIU_HOME,
+        headers={"User-Agent": _UA},
+        timeout=_TIMEOUT,
+        max_bytes=_MAX_RESPONSE_BYTES,
+        cookie_jar=_cookie_jar,
+    )
     _cookies_initialized = True
 
 
 def _get_json(url: str, config=None) -> Any:
     """Fetch *url* with Xueqiu session cookies and return parsed JSON."""
+    if not url_security.host_matches(url, "xueqiu.com"):
+        raise ValueError("only Xueqiu HTTPS hosts are allowed")
     _ensure_cookies(config)
-    req = urllib.request.Request(
-        url, headers={"User-Agent": _UA, "Referer": _REFERER}
+    raw = url_security.fetch_pinned_bytes(
+        url,
+        headers={"User-Agent": _UA, "Referer": _REFERER},
+        timeout=_TIMEOUT,
+        max_bytes=_MAX_RESPONSE_BYTES,
+        cookie_jar=_cookie_jar,
     )
-    with _opener.open(req, timeout=_TIMEOUT) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+    return json.loads(raw.decode("utf-8"))
 
 
 def _strip_html(text: str) -> str:

@@ -5,10 +5,10 @@ import json
 import shutil
 import ssl
 import subprocess
-import urllib.request
 from typing import Any
 from urllib.parse import quote, urlencode, urlsplit
 
+from agent_reach.utils import url as url_security
 from agent_reach.utils.process import utf8_subprocess_env
 from agent_reach.utils.text import scrub_url_credentials
 
@@ -44,13 +44,14 @@ def _validate_api_url(url: str) -> None:
 
 
 def _get_json_with_urllib(url: str) -> Any:
-    """Fetch JSON with Python's standard HTTP stack."""
+    """Fetch JSON with a DNS-pinned TLS connection."""
     _validate_api_url(url)
-    req = urllib.request.Request(url, headers={"User-Agent": _UA})
-    with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
-        raw = resp.read(_MAX_RESPONSE_BYTES + 1)
-    if len(raw) > _MAX_RESPONSE_BYTES:
-        raise ValueError("V2EX API response exceeds the 1 MiB safety limit")
+    raw = url_security.fetch_pinned_bytes(
+        url,
+        headers={"User-Agent": _UA},
+        timeout=_TIMEOUT,
+        max_bytes=_MAX_RESPONSE_BYTES,
+    )
     return json.loads(raw.decode("utf-8"))
 
 
@@ -89,6 +90,7 @@ def _get_json_with_curl(url: str) -> Any:
     if not curl:
         raise RuntimeError("curl is unavailable for the V2EX TLS fallback")
 
+    _, host, port, ips = url_security.pin_public_http_url(url)
     command = [
         curl,
         "--fail",
@@ -104,9 +106,12 @@ def _get_json_with_curl(url: str) -> Any:
         str(_MAX_RESPONSE_BYTES),
         "--header",
         f"User-Agent: {_UA}",
-        "--url",
-        url,
     ]
+    for ip in ips:
+        command.extend(
+            ["--resolve", url_security.curl_resolve_argument(host, port, ip)]
+        )
+    command.extend(["--url", url])
     try:
         result = subprocess.run(
             command,

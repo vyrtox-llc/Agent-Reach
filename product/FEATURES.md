@@ -21,7 +21,7 @@ Counts from code, 2026-08-13, v1.5.0: **15** channels in `agent_reach/channels/_
 | F2 | Install/update hygiene | 1–2 | phase-1 done | mixed | [F02](features/F02-install-hygiene.md) |
 | F3 | Doctor honesty | 1 | phase-1 done | JSON field blocked | [F03](features/F03-doctor-honesty.md) |
 | F4 | Cookie/auth UX | 1–4 | planned | mixed | [F04](features/F04-cookie-auth-ux.md) |
-| F5 | SSRF / fetch | 2 | planned | pin vs stop | [F05](features/F05-ssrf-fetch.md) |
+| F5 | SSRF / fetch | 2 | done (DNS-pin) | pin vs stop | [F05](features/F05-ssrf-fetch.md) |
 | F6 | Secrets | 3 | planned | keyring vs OS CLI | [F06](features/F06-secrets.md) |
 | F7 | Read-only policy | 4 | planned | gh wrapper | [F07](features/F07-read-only-policy.md) |
 | F8 | Channel productization | 1+4 | phase-1 docs done | `--channels=all` | [F08](features/F08-channel-productization.md) |
@@ -51,26 +51,26 @@ Counts from code, 2026-08-13, v1.5.0: **15** channels in `agent_reach/channels/_
 | F2.4 | Documented one-liner is check-only | F2 | 1 | done | no |
 | F2.5 | Skill install paths documented | F2 | 1 | done | no |
 | F2.6 | `docs/update.md` constraints recipe | F2 | 1 | done | no |
-| F2.7 | `--system` CLI blast print | F2 | 2 | planned | yes if new flag |
+| F2.7 | `--system` CLI blast print | F2 | 2 | done (print-only) | yes if new flag |
 | F2.8 | pipx/`-c` limitation documented | F2 | 1 | done | no |
 | F2.9 | Uninstall skill-dir list stays accurate | F2 | 1 | done (docs) | no |
 | F3.1 | Login-channel false-negatives, prose | F3 | 1 | done | no |
 | F3.2 | `doctor --json` `confidence` field | F3 | 1 | **blocked-on-Pepe** | yes (public API). Skip Phase 1 |
 | F3.3 | JSON schema freeze (`status` enum) | F3 | 1 | done (lock) | no |
 | F3.4 | Document which channels can never be `ok` | F3 | 1 | done | no |
-| F3.5 | `watch` treats all `warn` as issues | F3 | 2 | planned | no |
-| F4.1 | Kill paste-to-agent in cookie-export + guides | F4 | 2 | planned | no |
-| F4.2 | Stdin/getpass is the only documented path | F4 | 2 | planned | no |
-| F4.3 | XHS header-string `httpOnly`/`secure` | F4 | 2 | planned | no |
+| F3.5 | `watch` treats all `warn` as issues | F3 | 2 | done | no |
+| F4.1 | Kill paste-to-agent in cookie-export + guides | F4 | 2 | done | no |
+| F4.2 | Stdin/getpass is the only documented path | F4 | 2 | done | no |
+| F4.3 | XHS header-string `httpOnly`/`secure` | F4 | 2 | done | no |
 | F4.4 | Twitter unused YAML tokens | F4 | 3 | **blocked-on-Pepe** | yes (A vs B) |
 | F4.5 | `--from-browser` twitter/xhs stay blocked | F4 | 4 | planned (lock+gate) | yes if extra flag |
-| F4.6 | Positional secret argv discourage | F4 | 2 | planned | yes if removing positional |
-| F5.1 | DNS-pin helper vs stop in-process fetch | F5 | 2 | **blocked-on-Pepe** | yes (mechanism) |
-| F5.2 | `WebChannel.read` | F5 | 2 | planned | yes if deleting method |
-| F5.3 | V2EX owned fetch | F5 | 2 | planned | no (follows F5.1) |
-| F5.4 | Xueqiu owned fetch + CookieJar | F5 | 2 | planned | no (follows F5.1) |
-| F5.5 | yt-dlp / transcribe URL checks | F5 | 2 | planned | no (follows F5.1) |
-| F5.6 | RSS substring `can_handle` | F5 | 2 | planned | no |
+| F4.6 | Positional secret argv discourage | F4 | 2 | done (docs + warning) | yes if removing positional |
+| F5.1 | DNS-pin helper vs stop in-process fetch | F5 | 2 | done (DNS-pin) | yes (mechanism; picked) |
+| F5.2 | `WebChannel.read` | F5 | 2 | done (pinned, method kept) | yes if deleting method |
+| F5.3 | V2EX owned fetch | F5 | 2 | done (pinned) | no (follows F5.1) |
+| F5.4 | Xueqiu owned fetch + CookieJar | F5 | 2 | done (pinned) | no (follows F5.1) |
+| F5.5 | yt-dlp / transcribe URL checks | F5 | 2 | done (first-hop pin) | no (follows F5.1) |
+| F5.6 | RSS substring `can_handle` | F5 | 2 | done | no |
 | F6.1 | Keychain as product path, YAML fallback | F6 | 3 | planned | no (direction frozen) |
 | F6.2 | `keyring` extra vs OS CLI wrappers | F6 | 3 | **blocked-on-Pepe** | yes (dep) |
 | F6.3 | YAML → keychain migration | F6 | 3 | **blocked-on-Pepe** | yes (behavior) |
@@ -95,7 +95,7 @@ Counts from code, 2026-08-13, v1.5.0: **15** channels in `agent_reach/channels/_
 | F11.1 | Docs/contract grep tests | F11 | 1 | done | no |
 | F11.2 | Doctor tests (prose, not new JSON field) | F11 | 1 | done | no |
 | F11.3 | Install/constraints tests | F11 | 1 | done | no |
-| F11.4 | DNS-pin / cookie-paste / xhs flag tests | F11 | 2 | planned | no |
+| F11.4 | DNS-pin / cookie-paste / xhs flag tests | F11 | 2 | done | no |
 | F11.5 | Keychain + twitter path tests | F11 | 3 | planned | no |
 | F11.6 | gh allowlist tests | F11 | 4 | planned | no |
 | F12.1 | Drop skill check-update nudge | F12 | 1 | done | no (YES encoded) |

@@ -107,7 +107,7 @@ Public API, auth, dependency, and skill-policy changes always need a yes from Pe
 
 - [ ] No documented happy path pastes cookies into chat.
 - [ ] `--system` cannot be missed as a high-blast operation.
-- [ ] In-process fetch DNS-pins or is gone.
+- [x] In-process fetch DNS-pins or is gone.
 - [ ] XHS header-string cookies are not marked insecure.
 - [ ] High findings cookie-agent-logs, agent-system-writes, dns-rebinding, owned-fetchers addressed.
 

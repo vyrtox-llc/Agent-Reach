@@ -150,17 +150,15 @@ Skill `dev.md` only shows the wrapper. Advanced users still have real `gh`.
 
 ## SSRF helper (Phase 2)
 
-Add `utils/url.py` function used by web, v2ex, xueqiu, transcribe:
+Implemented in `utils/url.py`: `pin_hostname`, `pin_public_http_url`, `fetch_pinned_bytes`. Used by web, v2ex, xueqiu, bilibili doctor probe, transcribe.
 
 1. Existing `normalize_public_http_url` (literals + denylist).
-2. `getaddrinfo` the host.
-3. Every A/AAAA must be global unicast (`ipaddress`: not private, loopback, link-local, reserved, multicast, unspecified, not documentation).
+2. `getaddrinfo` the host (skipped for literal IPs).
+3. Every A/AAAA must be global unicast (`ipaddress.is_global`, plus CGNAT `100.64.0.0/10` and IPv4-mapped unwrap).
 4. Fail closed if any address is bad (prevents happy-eyeballs to metadata).
-5. Either pass the original URL to upstream **after** pin check (TOCTOU remains unless we connect ourselves) or connect with `ssl` to the pinned IP using original SNI/Host.
+5. Our fetchers connect to the pinned IP with original SNI/Host. yt-dlp still receives a hostname after a successful first-hop pin (residual TOCTOU).
 
-Honest limitation: if we still hand a hostname to yt-dlp/Jina after a successful resolve, DNS can change. Product bar is: pin on **our** fetchers; for yt-dlp, re-resolve immediately before exec and/or pass IP with Host header if yt-dlp allows. If not, document residual TOCTOU and still reject obvious bad first-hop DNS.
-
-Tests: fake `getaddrinfo`.
+Tests: `tests/test_dns_pin.py` with fake `getaddrinfo`.
 
 ## What not to touch
 

@@ -1,12 +1,10 @@
 # F5 SSRF / fetch
 
-**Parent:** none · **Phase:** 2 · **Status:** planned · **Audit:** dns-rebinding, owned-fetchers, rss-substring
+**Parent:** none · **Phase:** 2 · **Status:** done (DNS-pin) · **Audit:** dns-rebinding, owned-fetchers, rss-substring
 
-Agent Reach is not a fetcher. Three modules still speak HTTP inside this repo: `web.py`, `v2ex.py`, `xueqiu.py`. `transcribe.py` hands URLs to yt-dlp after a literal-IP check. Current guard: `utils/url.py` `normalize_public_http_url` rejects private **literal** IPs and a small host denylist, then **skips DNS** (`url.py:47-84`; `transcribe.py:214-247`).
+Agent Reach is not a fetcher. In-process HTTP is `web.py`, `v2ex.py`, `xueqiu.py`, and the Bilibili doctor probe. `transcribe.py` hands URLs to yt-dlp after a first-hop DNS-pin. Guard: `normalize_public_http_url` plus `pin_hostname` / `fetch_pinned_bytes` (ADR-008 option 1). yt-dlp still receives a hostname (residual TOCTOU).
 
-ADR-008: either DNS-pin to global unicast, or stop in-process fetch. Pepe picks before code.
-
-Do not export `AgentReach.read`. `WebChannel.read` is unused by `core.py`.
+ADR-008 pick (2026-08-24): DNS-pin. Keep `WebChannel.read`. Do not export `AgentReach.read`.
 
 ---
 
@@ -14,7 +12,7 @@ Do not export `AgentReach.read`. `WebChannel.read` is unused by `core.py`.
 
 - **Parent:** F5
 - **Phase:** 2
-- **Status:** **blocked-on-Pepe**
+- **Status:** done (DNS-pin)
 - **Goal:** Hostname rebinding cannot send our fetchers (or our pre-check) to `169.254.169.254` / loopback / RFC1918.
 - **Files:** `agent_reach/utils/url.py` (extend or add helper), callers listed in F5.2–F5.5. Mechanism notes in `ENGINEERING.md` SSRF helper.
 - **Acceptance:** One mechanism, applied everywhere we still fetch or pre-check:
@@ -31,7 +29,7 @@ Do not export `AgentReach.read`. `WebChannel.read` is unused by `core.py`.
 
 - **Parent:** F5
 - **Phase:** 2
-- **Status:** planned
+- **Status:** done (pinned; method kept)
 - **Goal:** Jina fetch is either pinned or gone from Python.
 - **Files:** `agent_reach/channels/web.py:48-67` (`urllib` to `r.jina.ai` after `normalize_public_http_url`). `can_handle` is always True (`:40-41` area). `check()` always ok, no network. Skill already uses `curl -s "https://r.jina.ai/URL"` (`SKILL.md:64`). `tests/test_web_channel.py`.
 - **Acceptance:**
@@ -48,7 +46,7 @@ Do not export `AgentReach.read`. `WebChannel.read` is unused by `core.py`.
 
 - **Parent:** F5
 - **Phase:** 2
-- **Status:** planned
+- **Status:** done (pinned)
 - **Goal:** V2EX public JSON is pinned or moved to skill curl.
 - **Files:** `agent_reach/channels/v2ex.py`, `tests/test_v2ex_channel.py`, skill V2EX curl (`SKILL.md:72-73`, `User-Agent: agent-reach/1.0`).
 - **Acceptance:** Same pin-or-stop as F5.1. Extended channel, not commercial headline (`CHANNELS.md`). Hardcoded HTTPS stays; still pin DNS.
@@ -63,7 +61,7 @@ Do not export `AgentReach.read`. `WebChannel.read` is unused by `core.py`.
 
 - **Parent:** F5
 - **Phase:** 2 (pin/stop) · jar remains power-user
-- **Status:** planned
+- **Status:** done (pinned; jar stays power-user)
 - **Goal:** Xueqiu HTTP cannot rebind. Process-global jar is not the product path.
 - **Files:** `agent_reach/channels/xueqiu.py` (CookieJar around `:24-28`, stock APIs), `tests/test_xueqiu_channel.py`.
 - **Acceptance:** Fetch through pin helper or stop. Do not make `xq_a_token` commercial. `--from-browser` for xueqiu stays power-user (F4.5).
@@ -78,7 +76,7 @@ Do not export `AgentReach.read`. `WebChannel.read` is unused by `core.py`.
 
 - **Parent:** F5
 - **Phase:** 2
-- **Status:** planned
+- **Status:** done (first-hop pin; hostname still passed)
 - **Goal:** `transcribe` does not pass a rebinding hostname through a literal-IP-only check.
 - **Files:** `agent_reach/transcribe.py:214-247` (literal IP + denylist), `:250-270` (hands URL to yt-dlp). `agent_reach/cli.py` `transcribe` subcommand. `tests/test_transcribe.py`. YouTube channel `channels/youtube.py` does not fetch; captions are yt-dlp from the skill.
 - **Acceptance:** Apply F5.1 before exec. If pin cannot bind yt-dlp to an IP+Host, document residual TOCTOU and still reject bad first resolve. Do not disable transcribe.
@@ -93,7 +91,7 @@ Do not export `AgentReach.read`. `WebChannel.read` is unused by `core.py`.
 
 - **Parent:** F5
 - **Phase:** 2
-- **Status:** planned
+- **Status:** done
 - **Goal:** Unused matcher is not a future host-lookalike bug.
 - **Files:** `agent_reach/channels/rss.py:13-14` (`"/feed", "/rss", ".xml", "atom"` substring). Core does not route on it (`core.py` doctor-only). Skill parses with feedparser (`skill/references/web.md`).
 - **Acceptance:** Switch to `host_matches` where a host is known, or a tighter heuristic that does not match `evil.com/notxml` / lookalikes; **or** document unused and add a test that `AgentReach` does not dispatch `can_handle` into fetch. Prefer tightening while unused.

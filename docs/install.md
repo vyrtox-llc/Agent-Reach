@@ -180,15 +180,20 @@ Some channels need credentials only the user can provide. Based on the doctor ou
 > 1. 用户在自己的浏览器上登录对应平台
 > 2. 安装 [Cookie-Editor](https://chromewebstore.google.com/detail/cookie-editor/hlkenndednhfkekhgcdicdfddnkalmdm) Chrome 插件
 > 3. 点击插件 → Export → Header String
-> 4. 把导出的字符串发给 Agent
+> 4. 用户在自己的终端导入（不要贴进对话，不要放进 argv）：
 >
-> Twitter 只接受用户通过 Cookie-Editor 明确导出的内容。Agent Reach 不替用户执行小红书登录，也不读取小红书浏览器 Cookie；小红书 OpenCLI 只使用用户已有且明确控制的 Chrome 会话。没有现成会话时，改用 Cookie-Editor 导出后配置 xiaohongshu-mcp / 存量工具。雪球、Bilibili 可按平台显式导入，例如 `agent-reach configure --from-browser chrome --platform xueqiu`；命令不会扫描或保存其他平台。
+> ```bash
+> pbpaste | agent-reach configure twitter-cookies --stdin
+> pbpaste | agent-reach configure xhs-cookies --stdin
+> ```
+>
+> Twitter 只接受用户通过 Cookie-Editor 明确导出的内容。Agent Reach 不替用户执行小红书登录，也不读取小红书浏览器 Cookie；小红书 OpenCLI 只使用用户已有且明确控制的 Chrome 会话。没有现成会话时，改用 Cookie-Editor 导出后配置 xiaohongshu-mcp / 存量工具。雪球、Bilibili 可按平台显式导入，例如 `agent-reach configure --from-browser chrome --platform xueqiu`；命令不会扫描或保存其他平台。`--from-browser` 对 twitter/xhs 仍然拒绝。
 
-**Twitter search & posting:**
-> "To unlock Twitter search, I need your Twitter cookies. Install the Cookie-Editor Chrome extension, go to x.com/twitter.com, click the extension → Export → Header String, and paste it to me."
+**Twitter search:**
+> Ask the user to export with Cookie-Editor, then have **them** run in a local terminal: `pbpaste | agent-reach configure twitter-cookies --stdin` (or `agent-reach configure twitter-cookies` for a hidden TTY prompt). Never paste cookies into chat. Never `agent-reach configure twitter-cookies <cookievalue>`.
 
 ```bash
-agent-reach configure twitter-cookies
+agent-reach configure twitter-cookies --stdin
 ```
 
 这会把 `twitter_auth_token` 和 `twitter_ct0` 保存给 Agent Reach 自己的
@@ -231,10 +236,11 @@ rdt login   # 自动提取浏览器 Cookie；服务器无浏览器时按 doctor 
 > **认证边界：** Agent Reach 不替用户执行小红书登录，也不读取浏览器
 > Cookie。OpenCLI 只使用用户已经存在且明确控制的 Chrome 会话；
 > `agent-reach configure xhs-cookies` 不会把 Cookie 注入 OpenCLI 或 Chrome。
-> 如果没有现成会话，不要自动登录；改用 Cookie-Editor 手工导出后配置
-> xiaohongshu-mcp 或存量工具：
+> 如果没有现成会话，不要自动登录；改用 Cookie-Editor 手工导出后，用户在本机终端导入（不要贴进对话）：
 >
 > ```bash
+> pbpaste | agent-reach configure xhs-cookies --stdin
+> # 或本机 TTY 隐藏提示：
 > agent-reach configure xhs-cookies
 > ```
 >

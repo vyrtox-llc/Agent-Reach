@@ -2,6 +2,7 @@
 """Contract tests for channel adapters."""
 
 import subprocess
+from urllib.error import URLError
 
 from agent_reach.channels import get_all_channels
 from agent_reach.config import Config
@@ -26,9 +27,21 @@ def test_channel_registry_contract():
         assert ch.tier in {0, 1, 2}
 
 
+def _offline_fetch(*_args, **_kwargs):
+    raise URLError("offline")
+
+
+def _block_in_process_fetch(monkeypatch):
+    monkeypatch.setattr("agent_reach.utils.url.fetch_pinned_bytes", _offline_fetch)
+    import agent_reach.channels.xueqiu as xueqiu_mod
+
+    monkeypatch.setattr(xueqiu_mod, "_cookies_initialized", True)
+
+
 def test_channel_check_contract_with_minimal_runtime(monkeypatch, tmp_path):
     # Keep contract tests deterministic by simulating "deps mostly absent".
     monkeypatch.setattr("shutil.which", lambda _cmd: None)
+    _block_in_process_fetch(monkeypatch)
     config = Config(config_path=tmp_path / "config.yaml")
 
     for ch in get_all_channels():
@@ -49,18 +62,7 @@ def test_channel_active_backend_attribute_contract():
 def test_channel_active_backend_set_by_check(monkeypatch, tmp_path):
     """After check(), active_backend is None or a str — never anything else."""
     monkeypatch.setattr("shutil.which", lambda _cmd: None)
-
-    # Keep the network-based channels (V2EX/Xueqiu/Bilibili API) deterministic.
-    import urllib.request
-    from urllib.error import URLError
-
-    def _no_net(*_a, **_k):
-        raise URLError("offline")
-
-    monkeypatch.setattr(urllib.request, "urlopen", _no_net)
-    import agent_reach.channels.xueqiu as xueqiu_mod
-    monkeypatch.setattr(xueqiu_mod, "_cookies_initialized", True)
-    monkeypatch.setattr(xueqiu_mod._opener, "open", _no_net)
+    _block_in_process_fetch(monkeypatch)
 
     config = Config(config_path=tmp_path / "config.yaml")
     for ch in get_all_channels():
@@ -184,3 +186,18 @@ def test_channel_can_handle_contract():
         sample = url_samples.get(ch.name, "https://example.com")
         result = ch.can_handle(sample)
         assert isinstance(result, bool)
+
+
+def test_rss_can_handle_rejects_lookalikes():
+    from agent_reach.channels.rss import RSSChannel
+
+    rss = RSSChannel()
+    assert rss.can_handle("https://example.com/feed.xml") is True
+    assert rss.can_handle("https://example.com/rss") is True
+    assert rss.can_handle("https://example.com/index.atom") is True
+    assert rss.can_handle("https://example.com/blog?format=rss") is True
+    assert rss.can_handle("https://example.com/?feed=rss2") is True
+    assert rss.can_handle("https://blog.example.com/feeds/posts/default") is True
+    assert rss.can_handle("https://evil.com/notxml") is False
+    assert rss.can_handle("https://example.com/atomic") is False
+    assert rss.can_handle("https://example.com/page.xml") is False
