@@ -122,6 +122,8 @@ def format_report(results: Dict[str, dict]) -> str:
     import stat
     import sys
 
+    from agent_reach.secrets import yaml_leftover_secret_keys
+
     config_path = Config.CONFIG_DIR / "config.yaml"
     if config_path.exists() and sys.platform != "win32":
         try:
@@ -134,5 +136,22 @@ def format_report(results: Dict[str, dict]) -> str:
                 lines.append("   修复：chmod 600 ~/.agent-reach/config.yaml")
         except OSError:
             pass
+
+    # Names only: leftover plaintext secrets in YAML (migrate-from leftovers).
+    try:
+        leftover_cfg = Config(read_only=True)
+        leftover = yaml_leftover_secret_keys(leftover_cfg.data)
+    except Exception:  # noqa: BLE001 — doctor must never crash on hygiene
+        leftover = []
+    if leftover:
+        lines.append("")
+        lines.append(
+            "[bold yellow][!]  安全提示：config.yaml 仍含明文密钥残留"
+            f"（{', '.join(leftover)}）[/bold yellow]"
+        )
+        lines.append(
+            "   产品路径是 OS 钥匙串。运行：agent-reach migrate-secrets"
+            "（复制进钥匙串，不删 YAML；确认后可手工删 YAML 里的密钥字段）"
+        )
 
     return "\n".join(lines)

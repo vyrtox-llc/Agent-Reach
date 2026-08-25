@@ -127,6 +127,11 @@ def main():
         help="With twitter-cookies, also write legacy xfetch/bird credential files",
     )
 
+    sub.add_parser(
+        "migrate-secrets",
+        help="Copy sensitive YAML keys into the OS secret store (does not delete YAML)",
+    )
+
     # ── doctor ──
     p_doctor = sub.add_parser("doctor", help="Check platform availability")
     p_doctor.add_argument("--json", action="store_true",
@@ -137,7 +142,7 @@ def main():
     p_uninstall.add_argument("--dry-run", action="store_true",
                              help="Show what would be removed without making any changes")
     p_uninstall.add_argument("--keep-config", action="store_true",
-                             help="Remove skill files only, keep ~/.agent-reach/ config and tokens")
+                             help="Remove skill files only; keep ~/.agent-reach/ and OS secret store items")
 
     # ── skill ──
     p_skill = sub.add_parser("skill", help="Manage agent skill registration")
@@ -238,6 +243,8 @@ def main():
         _cmd_install(args)
     elif args.command == "configure":
         _cmd_configure(args)
+    elif args.command == "migrate-secrets":
+        _cmd_migrate_secrets()
     elif args.command == "uninstall":
         _cmd_uninstall(args)
     elif args.command == "skill":
@@ -1390,7 +1397,7 @@ def _cmd_configure(args):
     import shutil
     from typing import cast
 
-    from agent_reach.config import Config
+    from agent_reach.config import Config, ConfigError
 
     config = Config()
 
@@ -1470,19 +1477,15 @@ def _cmd_configure(args):
         config.set("proxy", value)
         config.set("bilibili_proxy", value)
         print("✅ 代理已保存（供 Agent 在访问 Reddit/Twitter 等需要代理的网络时设置 HTTP_PROXY/HTTPS_PROXY）")
+        print("  Stored in the OS secret store (password-bearing URLs are secrets).")
         print("  Note: B站走 bili-cli，国内网络无需代理。")
 
     elif args.key == "twitter-cookies":
-        # Accept two formats:
-        # 1. auth_token ct0 (two separate values)
-        # 2. Full cookie header string: "auth_token=xxx; ct0=yyy; ..."
+        # ADR-004 B: do not persist twitter_auth_token / twitter_ct0.
+        # twitter-cli reads process env, not Agent Reach config.
         auth_token, ct0 = _parse_twitter_cookie_input(value)
 
         if auth_token and ct0:
-            config.set("twitter_auth_token", auth_token)
-            config.set("twitter_ct0", ct0)
-
-            print("✅ Twitter cookies 已保存到 ~/.agent-reach/config.yaml")
             if getattr(args, "sync_legacy_twitter", False):
                 from agent_reach.cookie_extract import (
                     _sync_bird_env,
@@ -1505,9 +1508,14 @@ def _cmd_configure(args):
                 if all(success for _, success in legacy_results):
                     print("  Legacy copies written successfully.")
 
+            print("✅ 已解析 Twitter cookies；Agent Reach 不会写入 config.yaml 或系统钥匙串。")
             print(
-                "  凭据未实时验证：不会执行 `twitter status`，因为上游在"
-                "验证失败时会自动读取浏览器 Cookie。"
+                "  在运行 `twitter` 的同一进程里 export TWITTER_AUTH_TOKEN 和 "
+                "TWITTER_CT0（不要贴进对话，不要打印值）。"
+            )
+            print(
+                "  凭据未实时验证：Doctor 只检查环境变量，不会执行 `twitter status`，"
+                "因为上游在验证失败时会自动读取浏览器 Cookie。"
             )
             if not shutil.which("twitter"):
                 print(
@@ -1515,8 +1523,7 @@ def _cmd_configure(args):
                 )
             else:
                 print(
-                    "  注意：独立 `twitter` 命令不会读取 Agent Reach 配置；"
-                    "直接使用时需显式设置 TWITTER_AUTH_TOKEN/TWITTER_CT0。"
+                    "  注意：独立 `twitter` 命令不会读取 Agent Reach 配置。"
                 )
         else:
             print("[X] Could not find auth_token and ct0 in your input.")
@@ -1536,16 +1543,55 @@ def _cmd_configure(args):
             raise SystemExit(1)
 
     elif args.key == "github-token":
-        config.set("github_token", value)
+        try:
+            config.set("github_token", value)
+        except ConfigError as exc:
+            print(f"agent-reach configure: error: {exc}", file=sys.stderr)
+            raise SystemExit(1) from None
         print("✅ GitHub token configured!")
+        print("  Stored in the OS secret store, not plaintext YAML.")
 
     elif args.key == "groq-key":
-        config.set("groq_api_key", value)
+        try:
+            config.set("groq_api_key", value)
+        except ConfigError as exc:
+            print(f"agent-reach configure: error: {exc}", file=sys.stderr)
+            raise SystemExit(1) from None
         print("✅ Groq key configured!")
+        print("  Stored in the OS secret store, not plaintext YAML.")
 
     elif args.key == "openai-key":
-        config.set("openai_api_key", value)
+        try:
+            config.set("openai_api_key", value)
+        except ConfigError as exc:
+            print(f"agent-reach configure: error: {exc}", file=sys.stderr)
+            raise SystemExit(1) from None
         print("✅ OpenAI key configured!")
+        print("  Stored in the OS secret store, not plaintext YAML.")
+
+
+def _cmd_migrate_secrets():
+    """Copy leftover YAML secrets into the OS store. Does not delete YAML."""
+    from agent_reach.config import Config, ConfigError
+
+    try:
+        config = Config()
+        copied = config.migrate_secrets_to_store()
+    except ConfigError as exc:
+        print(f"agent-reach migrate-secrets: error: {exc}", file=sys.stderr)
+        raise SystemExit(1) from None
+
+    if not copied:
+        print("No YAML secrets to copy into the OS secret store.")
+        return
+    print(
+        f"Copied {len(copied)} secret(s) into the OS secret store "
+        f"({', '.join(copied)})."
+    )
+    print(
+        "YAML leftovers were not deleted. Doctor still warns if "
+        "config.yaml is world-readable. Twitter cookies are never stored."
+    )
 
 
 def _cmd_transcribe(args):
@@ -1864,24 +1910,49 @@ def _cmd_uninstall(args):
     removed_any = False
     mcporter_cleanup_skipped = False
 
-    # ── 1. Config directory (~/.agent-reach/) ──
+    # ── 1. OS secret store + config directory (~/.agent-reach/) ──
     config_dir = home_dir() / ".agent-reach"
     if not keep_config:
-        if os.path.isdir(config_dir):
-            if dry_run:
+        from agent_reach.config import Config, ConfigError
+        from agent_reach.secrets import SERVICE_NAME, delete_accounts
+
+        accounts: set[str] = set()
+        try:
+            accounts = Config().stored_secret_accounts()
+        except ConfigError:
+            from agent_reach.secrets import collect_store_accounts
+
+            accounts = collect_store_accounts(None)
+        if dry_run:
+            print(
+                f"[dry-run] Would remove OS secret store items "
+                f"(service {SERVICE_NAME}, {len(accounts)} account name(s))"
+            )
+            if os.path.isdir(config_dir):
                 print(f"[dry-run] Would remove config directory: {config_dir}")
-                print("          (contains config.yaml with all tokens/cookies/API keys)")
+                print(
+                    "          (YAML leftovers + non-secret config; tokens live "
+                    "in the OS secret store)"
+                )
             else:
+                print(f"  Config directory not found (already clean): {config_dir}")
+        else:
+            delete_accounts(accounts)
+            print(f"  Removed OS secret store items (service {SERVICE_NAME})")
+            removed_any = True
+            if os.path.isdir(config_dir):
                 try:
                     shutil.rmtree(config_dir)
                     print(f"  Removed config directory: {config_dir}")
-                    removed_any = True
                 except Exception as e:
                     print(f"  Could not remove {config_dir}: {e}")
-        else:
-            print(f"  Config directory not found (already clean): {config_dir}")
+            else:
+                print(f"  Config directory not found (already clean): {config_dir}")
     else:
-        print(f"  Skipping config directory (--keep-config): {config_dir}")
+        print(
+            f"  Skipping config directory and OS secret store (--keep-config): "
+            f"{config_dir}"
+        )
 
     # Opt-in legacy copies may be shared with upstream tools. Without a
     # provenance marker it would be unsafe to delete them automatically, so
@@ -2114,7 +2185,10 @@ def _cmd_setup():
 
     # Summary
     print("=" * 40)
-    print(f"✅ 配置已保存到 {config.config_path}")
+    print(
+        f"✅ 非密钥配置已保存到 {config.config_path}；"
+        "Token/API key 写入系统钥匙串"
+    )
     print("运行 agent-reach doctor 查看完整状态")
     print()
 

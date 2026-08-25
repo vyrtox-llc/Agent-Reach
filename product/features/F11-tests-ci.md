@@ -6,7 +6,7 @@ Do not delete or weaken existing tests. Especially: `tests/test_doctor_credentia
 
 33 test modules + `conftest.py` today. Prefer adding `tests/test_docs_contract.py` for greps rather than stuffing `test_cli.py`.
 
-Run `pytest tests/ -v` before any commit Pepe asks for. CI: `.github/workflows/pytest.yml`.
+Run `pytest tests/ -v` before any commit Pepe asks for. CI: `.github/workflows/pytest.yml` (`test` matrix 3.10–3.13, `windows-test`, `wheel-gate`, consolidating `ci-gate` for branch protection).
 
 ---
 

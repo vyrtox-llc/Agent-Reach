@@ -208,10 +208,10 @@ Don't use it? Don't configure it. Every step is optional.
 ### 🍪 Cookies — Free, 2 minutes
 
 Tell your Agent "help me configure Twitter cookies" — it'll guide you through a
-manual Cookie-Editor export. Agent Reach saves the values for `doctor` to check
-whether credentials are present; `doctor` does not run `twitter status`.
-Direct `twitter` commands still require `TWITTER_AUTH_TOKEN` and `TWITTER_CT0`
-in their process environment.
+manual Cookie-Editor export. `agent-reach configure twitter-cookies` does **not**
+store cookies; it prints how to set `TWITTER_AUTH_TOKEN` / `TWITTER_CT0` in the
+twitter process. `doctor` checks those env vars only and does not run
+`twitter status`. Direct `twitter` commands still require those variables.
 
 For XiaoHongShu, Agent Reach never logs the user in or reads browser cookies.
 OpenCLI may use only an existing Chrome session explicitly controlled by the

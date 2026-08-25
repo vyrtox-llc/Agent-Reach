@@ -10,10 +10,12 @@ from .base import Channel
 
 
 def twitter_cli_child_env(config=None) -> dict[str, str]:
-    """Return saved credentials missing from the current process environment.
+    """Return credentials missing from the current process environment.
 
-    The returned mapping is meant for a single child process.  Existing shell
-    variables remain authoritative and ``os.environ`` is never mutated.
+    ADR-004 B: Agent Reach does not persist Twitter cookies. Real ``Config``
+    never returns stored tokens, so this helper is empty unless a test double
+    still surfaces values. Existing shell variables remain authoritative and
+    ``os.environ`` is never mutated.
     """
     if config is None:
         return {}
@@ -90,22 +92,19 @@ class TwitterChannel(Channel):
         if not shutil.which("twitter"):
             return None
 
-        child_env = twitter_cli_child_env(config)
-        auth_token = os.environ.get("TWITTER_AUTH_TOKEN") or child_env.get(
-            "TWITTER_AUTH_TOKEN"
-        )
-        ct0 = os.environ.get("TWITTER_CT0") or child_env.get("TWITTER_CT0")
+        auth_token = os.environ.get("TWITTER_AUTH_TOKEN")
+        ct0 = os.environ.get("TWITTER_CT0")
         if auth_token and ct0:
             return "warn", (
-                "twitter-cli 已安装，且 Cookie-Editor 凭据已配置；"
-                "Doctor 不会执行 `twitter status`，因为上游在验证失败时会"
-                "自动读取浏览器 Cookie。请在你明确同意时手动验证。"
+                "twitter-cli 已安装，且当前进程已设置 TWITTER_AUTH_TOKEN/"
+                "TWITTER_CT0；Doctor 不会执行 `twitter status`，因为上游在"
+                "验证失败时会自动读取浏览器 Cookie。请在你明确同意时手动验证。"
             )
         return "warn", (
-            "twitter-cli 已安装但没有完整的显式凭据。请用 Cookie-Editor "
-            "从 x.com 导出后运行：\n"
-            "  agent-reach configure twitter-cookies\n"
-            "Doctor 不会自动读取浏览器 Cookie。"
+            "twitter-cli 已安装但当前进程没有完整的 TWITTER_AUTH_TOKEN/"
+            "TWITTER_CT0。Agent Reach 不保存 Twitter cookies；用 Cookie-Editor "
+            "导出后运行 `agent-reach configure twitter-cookies` 查看如何在 "
+            "twitter 进程中 export。Doctor 不会自动读取浏览器 Cookie。"
         )
 
     def _check_opencli(self):

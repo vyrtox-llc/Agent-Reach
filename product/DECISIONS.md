@@ -38,26 +38,23 @@ Frozen unless Pepe reopens. Date: 2026-08-13. Basis: security audit + repo inspe
 
 ---
 
-## ADR-004 — Twitter tokens: inject or stop storing (pick in Phase 3)
+## ADR-004 — Twitter tokens: stop storing (Phase 3 pick B)
 
-**Decision (direction).** The current path is a lie: YAML stores `twitter_auth_token`/`twitter_ct0`; `twitter` does not read them; skill tells the agent to export env vars; `twitter_cli_child_env` exists but is unused for spawn.
+**Decision.** Stop persisting `twitter_auth_token` / `twitter_ct0` in Agent Reach config or keychain. `configure twitter-cookies` parses input and prints export instructions for the twitter process only. Doctor checks env vars, never runs `twitter status`. `--sync-legacy-twitter` stays opt-in. No `agent-reach twitter` wrapper.
 
-**Options (Pepe picks in Phase 3).**
+**Why.** Pepe Phase 3 encoding B. Upstream `twitter` does not read AR config; storing was a lie.
 
-- **A.** Thin wrapper that execs `twitter` with child env from keychain. Doctor still does not run `twitter status`.
-- **B.** Stop persisting Twitter cookies in AR config. Configure becomes a check that the env is set, or a one-shot that prints export instructions without storing.
-
-**Interim.** Do not add more stores (`--sync-legacy-twitter` stays explicit).
+**Consequences.** Skill/docs tell agents to export env in the child process. YAML leftovers are ignored by doctor. `twitter_cli_child_env` remains for test doubles only.
 
 ---
 
 ## ADR-005 — Secrets: OS keychain is the product path
 
-**Decision.** YAML 0600 is acceptable for a personal laptop and is well-built (`config.py`). It is not the product secret story. Phase 3 moves tokens/cookies/keys to OS keychain (or equivalent). YAML remains migrate-from and non-secret config (backend overrides, proxy URL with password still sensitive → keychain too).
+**Decision.** YAML 0600 is acceptable for a personal laptop and is well-built (`config.py`). It is not the product secret story. Phase 3 moves tokens/cookies/keys to OS keychain: macOS Security.framework via ctypes (no `security -w` argv), Linux `secret-tool` (stdin), Windows Credential Manager via ctypes. No `keyring` extra. No required runtime dep. Service name `agent-reach`; account = config key. YAML remains migrate-from and non-secret config (backend overrides, proxy URL with password still sensitive → keychain too).
 
-**Why.** No encryption at rest, Windows ACLs weaker, agent-readable files, `--sync-legacy-twitter` extra plaintext.
+**Why.** No encryption at rest, Windows ACLs weaker, agent-readable files, `--sync-legacy-twitter` extra plaintext. Pepe Phase 3 encoding: no keyring. macOS ctypes chosen over `security -w` to close argv exposure.
 
-**Consequences.** Dependency decision: wrap OS CLIs vs `keyring` extra. Ask Pepe. Never log values. `to_dict()` redaction stays.
+**Consequences.** Read: keychain → YAML leftover → env. Write: keychain; YAML dual-write only if `AGENT_REACH_SECRETS=yaml` (avoid on shared Windows). Opt-in `agent-reach migrate-secrets` copies without deleting YAML. Doctor warns on world-readable YAML **and** on leftover plaintext secret key names. Never log values. `to_dict()` redaction stays. Uninstall deletes service items we created unless `--keep-config`.
 
 ---
 
@@ -83,7 +80,7 @@ Frozen unless Pepe reopens. Date: 2026-08-13. Basis: security audit + repo inspe
 
 ## ADR-008 — SSRF: DNS-pin or stop fetching inside this repo
 
-**Decision.** Phase 2 uses **DNS-pin** (option 1). Keep `WebChannel.read`. Our urllib (web, v2ex, xueqiu, bilibili doctor probe) connects to a pinned global-unicast IP with the original SNI/Host. yt-dlp/transcribe re-resolves immediately before exec and rejects a non-global first hop; the URL passed to yt-dlp stays a hostname (residual TOCTOU; yt-dlp has no IP+Host bind here). Do not export `AgentReach.read`.
+**Decision.** Phase 2 uses **DNS-pin** (option 1). Keep `WebChannel.read`. Our urllib (web, v2ex, xueqiu, bilibili doctor probe) connects to a pinned global-unicast IP with the original SNI/Host. Pinned fetch honors `HTTP(S)_PROXY` and SOCKS5 with a tunnel to the pinned destination IP; on HTTP CONNECT-to-IP failure, falls back to `ALL_PROXY`/`SOCKS_PROXY` SOCKS5. yt-dlp/transcribe double-pins before exec and, when curl is present, pins the http(s) download hop with `curl --resolve`. **Accepted residual:** yt-dlp multi-host extractors (YouTube API / CDN hostnames discovered after the user URL). Do not export `AgentReach.read`.
 
 **Why.** Current check was literal IPs + denylist, then skip DNS (`utils/url.py`, `transcribe.py`). Hostname rebinding is the hole. Pepe authorized the pick on 2026-08-24 ("address risks first before continuing with best decisions").
 

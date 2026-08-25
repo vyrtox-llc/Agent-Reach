@@ -1,10 +1,8 @@
 # F6 Secrets
 
-**Parent:** none · **Phase:** 3 · **Status:** planned · **Audit:** plaintext-secrets, twitter-dead-config (via F4.4)
+**Parent:** none · **Phase:** 3 · **Status:** done · **Audit:** plaintext-secrets, twitter-dead-config (via F4.4)
 
-ADR-005: OS keychain is the product path. YAML 0600 is well-built (`config.py:46-103`) and stays as migrate-from / non-secret config. Do not add a runtime dep unless Pepe picks `keyring`.
-
-Phase 1–2 must not change auth storage.
+ADR-005: OS keychain is the product path. YAML 0600 stays as migrate-from / non-secret config. No `keyring` extra.
 
 ---
 
@@ -31,14 +29,14 @@ Phase 1–2 must not change auth storage.
 
 - **Parent:** F6
 - **Phase:** 3
-- **Status:** **blocked-on-Pepe**
+- **Status:** done (OS CLI wrappers; no keyring)
 - **Goal:** Pick how we talk to the OS store.
-- **Files:** `pyproject.toml` optional-dependencies (only if `keyring`). Else wrap `security` (macOS), `secret-tool` (libsecret), Windows credential CLI. `ENGINEERING.md` proposed service name `agent-reach`, account = config key.
-- **Acceptance:** Exactly one approach in code. Tests fake the backend. No required runtime dep unless Pepe approved `keyring`.
-- **Tests:** in-memory backend in CI.
-- **Dependencies:** Pepe pick
-- **Risks:** `keyring` is a dep. OS CLIs differ by platform and may be missing in CI (hence fake backend).
-- **Approval needed?** **yes.** Dependency decision.
+- **Files:** `agent_reach/secrets.py` — macOS Security.framework ctypes (no `security -w` argv), Linux `secret-tool` stdin, Windows CredMan ctypes. No `keyring` extra.
+- **Acceptance:** Exactly one approach in code. Tests fake the backend. No required runtime dep.
+- **Tests:** in-memory backend in CI (`tests/test_secrets.py`); macOS smoke verified SecItem round-trip.
+- **Dependencies:** Pepe pick (encoded Phase 3); argv risk closed via Security.framework
+- **Risks:** Windows ACL weaker (documented; no YAML dual-write on shared PCs). YAML leftovers nudged by doctor → `migrate-secrets`.
+- **Approval needed?** answered: no keyring; macOS ctypes preferred over `security -w`.
 
 ---
 

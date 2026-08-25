@@ -115,17 +115,21 @@ class TestConfig:
 
     def test_to_dict_redacts_sensitive_credential_markers(self, tmp_config):
         secrets = {
-            "twitter_ct0": "csrf-secret-value",
             "xhs_cookie": "web_session=xhs-secret",
             "browser_session": "browser-session-secret",
             "https_proxy": "socks5://proxy.example:1080",
             "xueqiu_cookie": "xq_a_token=xueqiu-secret",
             "bilibili_sessdata": "bili-session-secret",
             "bilibili_csrf": "bili-csrf-secret",
-            "twitter_auth_token": "twitter-auth-secret",
+            "github_token": "github-token-secret",
         }
         for key, value in secrets.items():
             tmp_config.set(key, value)
+
+        # Leftover YAML Twitter keys (pre-Phase-3) must still redact if present.
+        tmp_config.data["twitter_ct0"] = "csrf-secret-value"
+        tmp_config.data["twitter_auth_token"] = "twitter-auth-secret"
+        tmp_config.save()
 
         tmp_config.set("normal_setting", "visible")
         masked = tmp_config.to_dict()
@@ -134,6 +138,10 @@ class TestConfig:
         for key, value in secrets.items():
             assert masked[key] == "[REDACTED]"
             assert value not in dumped
+        assert masked["twitter_ct0"] == "[REDACTED]"
+        assert masked["twitter_auth_token"] == "[REDACTED]"
+        assert "csrf-secret-value" not in dumped
+        assert "twitter-auth-secret" not in dumped
         assert masked["normal_setting"] == "visible"
 
     def test_save_creates_file_with_restricted_permissions(self, tmp_path):
@@ -155,12 +163,12 @@ class TestConfig:
         import sys
 
         config_file = tmp_path / "secure_config.yaml"
-        config_file.write_text("twitter_auth_token: old\n", encoding="utf-8")
+        config_file.write_text("github_token: old\n", encoding="utf-8")
         if sys.platform != "win32":
             os.chmod(config_file, 0o644)
 
         config = Config(config_path=config_file)
-        config.set("twitter_auth_token", "new-secret")
+        config.set("github_token", "new-secret")
 
         if sys.platform != "win32":
             mode = config_file.stat().st_mode
@@ -173,7 +181,7 @@ class TestConfig:
 
         config_file = tmp_path / "private" / "config.yaml"
         config = Config(config_path=config_file)
-        config.set("key", "value")
+        config.set("prefer_backend", "value")
 
         if sys.platform != "win32":
             mode = config_file.parent.stat().st_mode
@@ -262,7 +270,7 @@ class TestConfig:
     ):
         config_file = tmp_path / "config.yaml"
         config = Config(config_path=config_file)
-        config.set("keep_key", "keep_value")
+        config.set("keep_setting", "keep_value")
         previous = config_file.read_bytes()
 
         def fail_dump(*args, **kwargs):
@@ -270,10 +278,10 @@ class TestConfig:
 
         monkeypatch.setattr("agent_reach.config.yaml.safe_dump", fail_dump)
         with pytest.raises(RuntimeError, match="simulated"):
-            config.set("new_key", "new_value")
+            config.set("new_setting", "new_value")
 
         assert config_file.read_bytes() == previous
-        assert config.get("new_key") is None
+        assert config.get("new_setting") is None
         assert list(tmp_path.glob(".config.yaml.*.tmp")) == []
 
     def test_atomic_temp_file_is_created_next_to_custom_config_path(
@@ -291,7 +299,7 @@ class TestConfig:
             return real_mkstemp(*args, **kwargs)
 
         monkeypatch.setattr("agent_reach.config.tempfile.mkstemp", spy_mkstemp)
-        config.set("key", "value")
+        config.set("prefer_backend", "opencli")
 
         assert observed["dir"] == str(config_file.parent)
-        assert config_file.read_text(encoding="utf-8") == "key: value\n"
+        assert config_file.read_text(encoding="utf-8") == "prefer_backend: opencli\n"

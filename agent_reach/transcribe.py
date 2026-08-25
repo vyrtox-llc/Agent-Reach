@@ -33,7 +33,7 @@ from urllib.parse import urlparse
 import requests
 
 from agent_reach.config import Config
-from agent_reach.utils.url import pin_hostname
+from agent_reach.utils.url import curl_resolve_argument, pin_hostname
 
 # Whisper API limit is 25MB; leave headroom for multipart overhead.
 SIZE_LIMIT_BYTES = 24 * 1024 * 1024
@@ -212,13 +212,17 @@ def _is_private_ip(value: str) -> bool:
     )
 
 
-def _assert_safe_public_url(url: str) -> None:
+def _assert_safe_public_url(url: str) -> tuple[str, int, list[str]] | None:
     """Reject local/internal URLs; DNS-pin hostnames before handing to yt-dlp.
 
-    Literal IP spellings stay DNS-free (``inet_aton`` grammar). Hostnames are
-    resolved immediately before exec. yt-dlp still receives the original
-    hostname, so a later rebind is residual TOCTOU — yt-dlp does not expose
-    an IP+Host bind we can use here.
+    Returns ``(host, port, pinned_ips)`` for hostnames, or None for a literal
+    public IP (no DNS). Callers that exec yt-dlp should pin twice immediately
+    before ``_run`` (both must be global; CDN IP set changes are allowed).
+
+    When curl is available, the http(s) download hop is pinned with
+    ``curl --resolve``. yt-dlp's own Python extractor may still contact other
+    hosts (e.g. YouTube API / googlevideo) — that multi-host residual is
+    accepted; full close needs a different downloader stack.
     """
     if "://" not in url:
         before_slash = url.split("/", 1)[0]
@@ -252,43 +256,77 @@ def _assert_safe_public_url(url: str) -> None:
         raise TranscribeError("SSRF blocked: internal host is not allowed")
     if _is_private_ip(host):
         raise TranscribeError("SSRF blocked: private/internal IP is not allowed")
-    if _literal_ip(host) is None:
-        port = parsed.port
-        if port is None:
-            port = 80 if parsed.scheme == "http" else 443
-        try:
-            pin_hostname(host, port)
-        except ValueError as exc:
-            raise TranscribeError(
-                "SSRF blocked: hostname resolved to a private/internal address"
-            ) from exc
+    literal = _literal_ip(host)
+    if literal is not None:
+        return None
+    port = parsed.port
+    if port is None:
+        port = 80 if parsed.scheme == "http" else 443
+    try:
+        return host, port, pin_hostname(host, port)
+    except ValueError as exc:
+        raise TranscribeError(
+            "SSRF blocked: hostname resolved to a private/internal address"
+        ) from exc
+
+
+def _double_pin_before_yt_dlp(url: str) -> tuple[str, int, list[str]] | None:
+    """Pin twice immediately before yt-dlp; both answers must be global.
+
+    Shrinks the rebind-to-private window. Does not require identical IP sets
+    (CDN flap). Returns the second pin for curl ``--resolve`` when present.
+    """
+    _assert_safe_public_url(url)
+    return _assert_safe_public_url(url)
+
+
+def _yt_dlp_download_cmd(
+    url: str,
+    template: Path,
+    pinned: tuple[str, int, list[str]] | None,
+) -> List[str]:
+    """Build yt-dlp argv; pin http(s) download hop via curl when available."""
+    cmd: List[str] = [
+        "yt-dlp",
+        "-x",
+        "--audio-format",
+        "m4a",
+        "--audio-quality",
+        "0",
+        "--no-playlist",
+        "--max-filesize",
+        str(MAX_SOURCE_BYTES),
+        "-o",
+        str(template),
+    ]
+    if pinned is not None and shutil.which("curl"):
+        host, port, ips = pinned
+        resolve = curl_resolve_argument(host, port, ips[0])
+        # Native remains for dash/m3u8; curl --resolve covers direct http(s).
+        cmd.extend(
+            [
+                "--downloader",
+                "http,https:curl",
+                "--downloader-args",
+                f"curl:--resolve {resolve}",
+            ]
+        )
+    cmd.extend(["--", url])
+    return cmd
 
 
 def download_audio(url: str, out_dir: Path) -> Path:
     """Download audio with yt-dlp into out_dir; return the resulting file path.
 
-    First-hop DNS is pinned to global unicast. The URL passed to yt-dlp stays
-    a hostname, so this is not an IP+Host bind.
+    Double DNS-pin immediately before exec. When curl is on PATH, the http(s)
+    download hop uses ``curl --resolve`` to the pinned IP. yt-dlp extractors
+    that fan out to other hostnames remain a documented residual.
     """
-    _assert_safe_public_url(url)
     _require("yt-dlp")
+    pinned = _double_pin_before_yt_dlp(url)
     template = out_dir / "source.%(ext)s"
     _run(
-        [
-            "yt-dlp",
-            "-x",
-            "--audio-format",
-            "m4a",
-            "--audio-quality",
-            "0",
-            "--no-playlist",
-            "--max-filesize",
-            str(MAX_SOURCE_BYTES),
-            "-o",
-            str(template),
-            "--",
-            url,
-        ],
+        _yt_dlp_download_cmd(url, template, pinned),
         timeout=1800,  # long podcasts over slow networks — generous but bounded
     )
     files = sorted(out_dir.glob("source.*"))

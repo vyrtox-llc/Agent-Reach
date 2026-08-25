@@ -415,15 +415,19 @@ def test_install_rejects_unknown_channel_before_side_effects(
 def test_manual_twitter_cookie_legacy_copies_are_opt_in(
     monkeypatch, capsys, sync_legacy
 ):
-    """The source-of-truth config is always written; legacy copies are optional."""
+    """Twitter cookies are not persisted; legacy copies remain opt-in only."""
     import shutil
 
     import agent_reach.config as config_module
     import agent_reach.cookie_extract as cookie_extract
 
     calls = []
-    config = _MemoryConfig()
-    monkeypatch.setattr(config_module, "Config", lambda: config)
+
+    class RecordingConfig(_MemoryConfig):
+        def set(self, key, value):
+            raise AssertionError("twitter cookies must not persist via config.set")
+
+    monkeypatch.setattr(config_module, "Config", RecordingConfig)
     monkeypatch.setattr(shutil, "which", lambda _name: None)
     monkeypatch.setattr(
         cookie_extract,
@@ -445,11 +449,12 @@ def test_manual_twitter_cookie_legacy_copies_are_opt_in(
         )
     )
 
-    assert config.get("twitter_auth_token") == "auth-value"
-    assert config.get("twitter_ct0") == "ct0-value"
     assert bool(calls) is sync_legacy
     output = capsys.readouterr().out
     assert ("Legacy copies written" in output) is sync_legacy
+    assert "不会写入" in output
+    assert "auth-value" not in output
+    assert "ct0-value" not in output
 
 
 @pytest.mark.parametrize(
@@ -528,10 +533,10 @@ def test_twitter_configure_never_runs_upstream_browser_fallback(
     )
 
     output = capsys.readouterr().out
-    assert "已保存" in output
+    assert "不会写入" in output
     assert "未实时验证" in output
     assert "Twitter access works" not in output
-
+    assert "auth-value" not in output
 
 def test_doctor_never_installs_or_updates_skill(monkeypatch, capsys):
     """A diagnostic command is read-only and must not mutate agent instructions."""

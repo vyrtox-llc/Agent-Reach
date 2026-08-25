@@ -39,7 +39,8 @@ All Agent Reach files go in dedicated directories — **never in the agent works
 
 | Purpose | Directory | Example |
 |---------|-----------|---------|
-| Config & tokens | `~/.agent-reach/` | `~/.agent-reach/config.yaml` |
+| Non-secret config | `~/.agent-reach/` | `~/.agent-reach/config.yaml` |
+| Product secrets | OS secret store | service `agent-reach` (Keychain / libsecret / Credential Manager) |
 | Upstream tool repos | `~/.agent-reach/tools/` | `~/.agent-reach/tools/xiaoyuzhou/` |
 | Temporary files | `/tmp/` | `/tmp/yt-dlp-output/` |
 | Skills | four roots (see blast radius) | `~/.claude/skills/agent-reach/` etc. |
@@ -125,7 +126,25 @@ Check-only (`install --env=auto` without `--system`) does **not** do those write
 
 #### Uninstall
 
-`agent-reach uninstall` removes `~/.agent-reach/` and skill copies from the four roots above. `--keep-config` keeps YAML. `--dry-run` previews. This does not uninstall the Python package (`pip uninstall agent-reach`).
+`agent-reach uninstall` removes OS secret-store items for service `agent-reach`, `~/.agent-reach/`, and skill copies from the four roots above. `--keep-config` keeps YAML **and** keychain items. `--dry-run` previews. This does not uninstall the Python package (`pip uninstall agent-reach`).
+
+To copy leftover YAML secrets into the OS store without deleting YAML:
+
+```bash
+agent-reach migrate-secrets
+```
+
+Set `AGENT_REACH_SECRETS=yaml` only if you need dual-write back to plaintext YAML (power-user escape hatch). Avoid on shared Windows machines: Credential Manager ACL is weaker than macOS Keychain / libsecret; keeping a second plaintext copy defeats the point.
+
+**Platform notes**
+
+| OS | Store | Notes |
+|----|-------|-------|
+| macOS | Keychain (Security.framework) | No `security -w` argv; secrets never on the process command line |
+| Linux | libsecret `secret-tool` | Password on stdin |
+| Windows | Credential Manager (DPAPI, per-user) | Weaker ACL story than Keychain; do not enable YAML dual-write on shared PCs |
+
+Doctor warns if `config.yaml` still holds plaintext secret leftovers and points at `migrate-secrets`.
 
 ### Step 2: Ask the user which optional channels they want
 
@@ -196,15 +215,21 @@ Some channels need credentials only the user can provide. Based on the doctor ou
 agent-reach configure twitter-cookies --stdin
 ```
 
-这会把 `twitter_auth_token` 和 `twitter_ct0` 保存给 Agent Reach 自己的
-`doctor` 配置检查。`doctor` 不会实时执行上游 `twitter status`，也不会修改
-当前 Shell。直接运行 `twitter search/read/...` 前，必须在该进程环境中显式设置：
+Agent Reach **does not** save `twitter_auth_token` / `twitter_ct0` to config.yaml
+or the OS secret store. The command only checks that your export parses, then
+prints how to set env vars in the **twitter** process. `doctor` checks those
+env vars only and never runs `twitter status`. Direct `twitter search/read/...`
+still needs:
 
 ```bash
 export TWITTER_AUTH_TOKEN="..."
 export TWITTER_CT0="..."
 twitter search "query" -n 10
 ```
+
+GitHub / Groq / OpenAI keys from `agent-reach configure` go to the OS secret
+store (not plaintext YAML). Optional: `agent-reach migrate-secrets` copies
+existing YAML leftovers into the store without deleting YAML.
 
 > **代理说明（中国大陆等需要翻墙的网络环境）：**
 >
@@ -389,9 +414,10 @@ If the user wants a different agent to handle it, let them choose.
 | `agent-reach doctor` | Show channel status |
 | `agent-reach watch` | Quick health + update check (for scheduled tasks) |
 | `agent-reach check-update` | Check for new versions |
-| `agent-reach configure twitter-cookies` | 通过隐藏输入保存 Twitter Cookie；直接调用仍需显式环境变量 |
-| `agent-reach configure proxy` | 通过隐藏输入保存代理地址；不是自动解锁开关 |
-| `agent-reach configure groq-key` | 通过隐藏输入配置小宇宙转录 Key |
+| `agent-reach configure twitter-cookies` | 解析 Cookie 并打印 export 说明；**不**写入 AR 配置；直接调用仍需显式环境变量 |
+| `agent-reach migrate-secrets` | 把 YAML 残留密钥复制进 OS 钥匙串（不删 YAML） |
+| `agent-reach configure proxy` | 通过隐藏输入保存代理地址到钥匙串；不是自动解锁开关 |
+| `agent-reach configure groq-key` | 通过隐藏输入配置小宇宙转录 Key（OS 钥匙串） |
 
 After installation, use upstream tools directly. See SKILL.md for the full command reference:
 

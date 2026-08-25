@@ -91,31 +91,34 @@ Pepe picked F5.1: DNS-pin (ADR-008). Do not add `--i-understand-system` unless a
 - [x] F5.2 WebChannel.read pinned (method kept)
 - [x] F5.3 V2EX pinned (urllib + curl `--resolve`)
 - [x] F5.4 Xueqiu pinned (CookieJar kept, power-user)
-- [x] F5.5 transcribe / yt-dlp first-hop DNS-pin (hostname still passed; TOCTOU documented)
+- [x] F5.5 transcribe / yt-dlp double DNS-pin + curl `--resolve` for http/https hop (multi-host extractor residual accepted)
 - [x] F5.6 RSS `can_handle` tightened or marked unused
 - [x] F3.5 `watch` does not treat by-design `warn` as broken
 - [x] F11.4 cookie-paste grep, XHS flags, `--system` print, DNS-pin tests
+- [x] Phase 2 leftovers: pinned fetch honors `HTTP(S)_PROXY` + SOCKS5 + `ALL_PROXY` fallback; yt-dlp curl resolve; CI `ci-gate` job
 - [x] `pytest tests/ -v` green for the Phase 2 slice
 
-**Exit:** No documented cookie-in-chat happy path. `--system` is loud. In-process fetch DNS-pins. XHS header-string cookies not marked insecure.
+**Exit:** No documented cookie-in-chat happy path. `--system` is loud. In-process fetch DNS-pins (proxy-aware). XHS header-string cookies not marked insecure.
 
 ---
 
 ## Phase 3 — Secrets + Twitter path
 
-Pepe must pick F6.2 (keyring vs OS CLI), F6.3 (migration), F4.4 (Twitter A vs B).
+Pepe picked F6.2 (OS store, no keyring; macOS Security.framework ctypes to avoid `security -w` argv), F6.3 (keychain write; YAML dual-write only if `AGENT_REACH_SECRETS=yaml`; opt-in migrate), F4.4 B (stop storing Twitter).
 
-- [ ] F6.2 Mechanism picked
-- [ ] F6.1 Keychain product path
-- [ ] F6.3 Migration without logging values
-- [ ] F6.4 YAML 0600 + symlink refusal still on
-- [ ] F6.5 `--sync-legacy-twitter` still opt-in
-- [ ] F6.6 Uninstall deletes keychain items we created
-- [ ] F4.4 Twitter inject **or** stop storing
-- [ ] F11.5 Fake-backend secret tests
-- [ ] `pytest tests/ -v` green
+Risk pass: macOS argv closed; doctor warns on YAML leftover secret *names*; Windows ACL + no dual-write documented.
 
-**Exit:** Documented product secrets are keychain. Twitter lie is gone. No new runtime dep unless approved.
+- [x] F6.2 Mechanism picked (OS CLI / ctypes; no `keyring` extra)
+- [x] F6.1 Keychain product path
+- [x] F6.3 Migration without logging values
+- [x] F6.4 YAML 0600 + symlink refusal still on
+- [x] F6.5 `--sync-legacy-twitter` still opt-in
+- [x] F6.6 Uninstall deletes keychain items we created
+- [x] F4.4 Twitter stop storing (option B)
+- [x] F11.5 Fake-backend secret tests
+- [x] `pytest tests/ -v` green
+
+**Exit:** Documented product secrets are keychain. Twitter lie is gone. No new runtime dep unless approved. **Met on branch `phase-3-secrets` (pytest 650 passed; uncommitted until Pepe asks).**
 
 ---
 

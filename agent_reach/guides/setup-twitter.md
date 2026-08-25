@@ -44,12 +44,12 @@ pbpaste | agent-reach configure twitter-cookies --stdin
 agent-reach configure twitter-cookies
 ```
 
-这会提取 `auth_token` 和 `ct0`，安全保存到
-`~/.agent-reach/config.yaml`，供 `agent-reach doctor` 检查显式凭据是否齐全。
-`doctor` 不会执行 `twitter status`，不会实时验证账号是否可用，也不会修改当前 Shell。
+这会解析 `auth_token` 和 `ct0`，并打印如何在 **twitter 进程**里
+`export TWITTER_AUTH_TOKEN` / `TWITTER_CT0`。Agent Reach **不会**把它们写入
+`~/.agent-reach/config.yaml` 或系统钥匙串。
+`doctor` 只检查当前进程环境变量，不会执行 `twitter status`，不会实时验证账号，也不会修改当前 Shell。
 
-默认只写 `~/.agent-reach/config.yaml`。只有用户明确同意复制凭据并显式增加
-`--sync-legacy-twitter` 时，才会额外写入：
+只有用户明确同意并显式增加 `--sync-legacy-twitter` 时，才会额外写入明文 legacy 副本：
 
 - `~/.config/xfetch/session.json`
 - `~/.config/bird/credentials.env`

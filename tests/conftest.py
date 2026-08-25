@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from agent_reach.config import Config
+from agent_reach.secrets import MemoryBackend, set_backend
 
 
 @pytest.fixture(scope="session")
@@ -81,11 +82,14 @@ def isolated_home(tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(home / "AppData" / "Roaming"))
     monkeypatch.setenv("LOCALAPPDATA", str(home / "AppData" / "Local"))
     monkeypatch.delenv("OPENCLAW_HOME", raising=False)
+    monkeypatch.delenv("AGENT_REACH_SECRETS", raising=False)
 
     config_dir = home / ".agent-reach"
     monkeypatch.setattr(Config, "CONFIG_DIR", config_dir)
     monkeypatch.setattr(Config, "CONFIG_FILE", config_dir / "config.yaml")
-    return home
+    set_backend(MemoryBackend())
+    yield home
+    set_backend(None)
 
 
 @pytest.fixture(autouse=True)

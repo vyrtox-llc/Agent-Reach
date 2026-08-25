@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 """Configuration management for Agent Reach.
 
-Stores settings in ~/.agent-reach/config.yaml. Reads never create files or
-directories; the private directory is created only on the first write.
+Non-secret settings live in ~/.agent-reach/config.yaml. Sensitive values
+(tokens, cookies, keys) go to the OS secret store. YAML remains migrate-from
+and the AGENT_REACH_SECRETS=yaml dual-write escape hatch. Reads never create
+files or directories; the private directory is created only on the first write.
 """
 
 import os
@@ -13,6 +15,16 @@ from typing import Any, Optional
 
 import yaml
 
+from agent_reach.secrets import (
+    VAULT_ITEMS_KEY,
+    SecretStoreError,
+    collect_store_accounts,
+    get_backend,
+    is_never_store_key,
+    is_sensitive_key,
+    migrate_from_mapping,
+    yaml_dual_write_enabled,
+)
 from agent_reach.utils.paths import (
     PrivatePathError,
     ensure_no_symlink_path,
@@ -157,11 +169,36 @@ class Config:
         _atomic_write_yaml(self.config_path, self.data)
 
     def get(self, key: str, default: Any = None) -> Any:
-        """Get a config value. Also checks environment variables (uppercase)."""
-        # Config file first
+        """Get a config value.
+
+        Sensitive keys: OS store, then YAML leftover, then env (uppercase).
+        Twitter cookies are never-store: env only.
+        Non-secret keys: YAML, then env (uppercase).
+        """
+        if is_never_store_key(key):
+            env_val = os.environ.get(key.upper())
+            if env_val:
+                return env_val
+            return default
+
+        if is_sensitive_key(key):
+            try:
+                stored = get_backend().get(key)
+            except SecretStoreError:
+                stored = None
+            if stored:
+                return stored
+            if key in self.data:
+                yaml_value = self.data[key]
+                if yaml_value not in (None, ""):
+                    return yaml_value
+            env_val = os.environ.get(key.upper())
+            if env_val:
+                return env_val
+            return default
+
         if key in self.data:
             return self.data[key]
-        # Then env var (uppercase)
         env_val = os.environ.get(key.upper())
         if env_val:
             return env_val
@@ -171,30 +208,143 @@ class Config:
         """Set a config value and save."""
         if self.read_only:
             raise ConfigReadOnlyError("当前配置是只读的，不能修改")
+        if is_never_store_key(key):
+            raise ConfigError(
+                "Twitter cookies are not stored by Agent Reach; "
+                "export TWITTER_AUTH_TOKEN and TWITTER_CT0 in the twitter process"
+            )
+
         missing = object()
         previous = self.data.get(key, missing)
-        self.data[key] = value
+        previous_accounts = list(self.data.get(VAULT_ITEMS_KEY) or [])
+        previous_secret = None
+        wrote_store = False
+        store_this = is_sensitive_key(key) and isinstance(value, str) and bool(value)
+
         try:
+            if store_this:
+                backend = get_backend()
+                previous_secret = backend.get(key)
+                backend.set(key, value)
+                wrote_store = True
+                self._remember_store_account(key)
+                if yaml_dual_write_enabled():
+                    self.data[key] = value
+                else:
+                    self.data.pop(key, None)
+            else:
+                if is_sensitive_key(key):
+                    get_backend().delete(key)
+                    self._forget_store_account(key)
+                self.data[key] = value
             self.save()
-        except BaseException:
+        except SecretStoreError as exc:
+            if wrote_store:
+                try:
+                    backend = get_backend()
+                    if previous_secret is None:
+                        backend.delete(key)
+                    else:
+                        backend.set(key, previous_secret)
+                except SecretStoreError:
+                    pass
             if previous is missing:
                 self.data.pop(key, None)
             else:
                 self.data[key] = previous
+            if previous_accounts:
+                self.data[VAULT_ITEMS_KEY] = previous_accounts
+            else:
+                self.data.pop(VAULT_ITEMS_KEY, None)
+            raise ConfigError("OS secret store write failed") from exc
+        except BaseException:
+            if wrote_store:
+                try:
+                    backend = get_backend()
+                    if previous_secret is None:
+                        backend.delete(key)
+                    else:
+                        backend.set(key, previous_secret)
+                except SecretStoreError:
+                    pass
+            if previous is missing:
+                self.data.pop(key, None)
+            else:
+                self.data[key] = previous
+            if previous_accounts:
+                self.data[VAULT_ITEMS_KEY] = previous_accounts
+            else:
+                self.data.pop(VAULT_ITEMS_KEY, None)
             raise
 
     def delete(self, key: str):
-        """Delete a config key and save."""
+        """Delete a config key and save.
+
+        Never-store Twitter keys may still be scrubbed from leftover YAML.
+        """
         if self.read_only:
             raise ConfigReadOnlyError("当前配置是只读的，不能修改")
         missing = object()
         previous = self.data.pop(key, missing)
+        previous_accounts = list(self.data.get(VAULT_ITEMS_KEY) or [])
+        previous_secret = None
+        deleted_store = False
         try:
+            if is_sensitive_key(key) and not is_never_store_key(key):
+                backend = get_backend()
+                previous_secret = backend.get(key)
+                backend.delete(key)
+                deleted_store = True
+                self._forget_store_account(key)
             self.save()
         except BaseException:
             if previous is not missing:
                 self.data[key] = previous
+            if previous_accounts:
+                self.data[VAULT_ITEMS_KEY] = previous_accounts
+            else:
+                self.data.pop(VAULT_ITEMS_KEY, None)
+            if deleted_store and previous_secret is not None:
+                try:
+                    get_backend().set(key, previous_secret)
+                except SecretStoreError:
+                    pass
             raise
+
+    def migrate_secrets_to_store(self) -> list[str]:
+        """Copy sensitive YAML leftovers into the OS store. Do not delete YAML."""
+        if self.read_only:
+            raise ConfigReadOnlyError("当前配置是只读的，不能修改")
+        try:
+            copied = migrate_from_mapping(self.data)
+            for name in copied:
+                self._remember_store_account(name)
+            if copied:
+                self.save()
+            return copied
+        except SecretStoreError as exc:
+            raise ConfigError("OS secret store write failed") from exc
+
+    def stored_secret_accounts(self) -> set[str]:
+        """Account names we may have written. Names only, never values."""
+        return collect_store_accounts(self.data)
+
+    def _remember_store_account(self, key: str) -> None:
+        items = [str(item) for item in (self.data.get(VAULT_ITEMS_KEY) or []) if item]
+        if key not in items:
+            items.append(key)
+        self.data[VAULT_ITEMS_KEY] = items
+
+    def _forget_store_account(self, key: str) -> None:
+        items = [
+            str(item)
+            for item in (self.data.get(VAULT_ITEMS_KEY) or [])
+            if item and item != key
+        ]
+        if items:
+            self.data[VAULT_ITEMS_KEY] = items
+        else:
+            self.data.pop(VAULT_ITEMS_KEY, None)
 
     def is_configured(self, feature: str) -> bool:
         """Check if a feature has all required config."""
@@ -210,24 +360,16 @@ class Config:
 
     def to_dict(self) -> dict:
         """Return config as dict (masks sensitive values)."""
-        sensitive_markers = (
-            "key",
-            "token",
-            "password",
-            "proxy",
-            "cookie",
-            "secret",
-            "session",
-            "sessdata",
-            "csrf",
-            "auth",
-            "cred",
-            "ct0",
-        )
         masked = {}
         for k, v in self.data.items():
-            if any(s in k.lower() for s in sensitive_markers):
+            if k == VAULT_ITEMS_KEY:
+                masked[k] = list(v) if isinstance(v, list) else v
+            elif is_sensitive_key(k):
                 masked[k] = "[REDACTED]" if v else None
             else:
                 masked[k] = v
+        for account in self.data.get(VAULT_ITEMS_KEY) or []:
+            if not isinstance(account, str) or account in masked:
+                continue
+            masked[account] = "[REDACTED]"
         return masked

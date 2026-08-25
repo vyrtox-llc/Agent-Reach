@@ -67,19 +67,17 @@ CLI already has `--stdin` and hidden getpass (`cli.py:106-110`). Twitter/XHS `--
 
 - **Parent:** F4
 - **Phase:** 3
-- **Status:** **blocked-on-Pepe** (ADR-004 A vs B)
+- **Status:** done (option B)
 - **Goal:** Stop lying that `configure twitter-cookies` makes `twitter` work.
 - **Files:**
-  - `agent_reach/cli.py` configure twitter-cookies (`:1470`)
-  - `agent_reach/channels/twitter.py:12-31` `twitter_cli_child_env` (tested in `tests/test_twitter_channel.py`, unused by any production spawn)
-  - `agent_reach/skill/SKILL.md:81-84` (tells agent to set `TWITTER_AUTH_TOKEN` / `TWITTER_CT0` in the process env)
-- **Acceptance:** Exactly one of:
-  - **A.** Thin wrapper execs `twitter` with child env from keychain/YAML. Doctor still does not run `twitter status`. Skill uses the wrapper. `os.environ` never mutated.
-  - **B.** Stop persisting Twitter cookies in AR config. Configure checks env or prints export instructions without storing.
-- **Tests:** A: wrapper sets child env only. B: configure twitter-cookies does not persist YAML keys. Either way: `test_doctor_credential_boundaries.py` still refuses `twitter status`.
-- **Dependencies:** F6 (keychain if A stores there). Do not implement in Phase 1–2.
-- **Risks:** A is more surface. B is less productized for power users. Pick in Phase 3.
-- **Approval needed?** **yes.** A vs B.
+  - `agent_reach/cli.py` configure twitter-cookies
+  - `agent_reach/channels/twitter.py` doctor env-only
+  - `agent_reach/skill/SKILL.md` / `SKILL_en.md`
+- **Acceptance:** **B.** Stop persisting Twitter cookies in AR config. Configure prints export instructions without storing. Doctor checks env, never runs `twitter status`.
+- **Tests:** configure does not persist; `test_doctor_credential_boundaries.py` still refuses `twitter status`.
+- **Dependencies:** F6 (never-store keys)
+- **Risks:** less productized for power users (accepted).
+- **Approval needed?** answered: B.
 
 ---
 

@@ -142,16 +142,16 @@ Public API, auth, dependency, and skill-policy changes always need a yes from Pe
 
 **Exit criteria.**
 
-- [ ] Documented product path for GitHub token / Groq / OpenAI / Exa (if any) is keychain.
-- [ ] Cookie YAML is power-user leftover, not the README security table's headline.
-- [ ] Twitter lie is gone (inject or don't store).
-- [ ] No new runtime dep unless Pepe approved it.
+- [x] Documented product path for GitHub token / Groq / OpenAI / Exa (if any) is keychain.
+- [x] Cookie YAML is power-user leftover, not the README security table's headline.
+- [x] Twitter lie is gone (stop storing).
+- [x] No new runtime dep unless Pepe approved it.
 
-**Pepe must approve.**
+**Pepe must approve.** Encoded for Phase 3 execute:
 
-1. keyring extra vs OS CLI wrappers (dependency).
-2. Twitter option A (wrapper inject) vs B (stop storing).
-3. Migration behavior for existing `config.yaml`.
+1. OS CLI wrappers (no keyring).
+2. Twitter option B (stop storing).
+3. Migration: keychain write; YAML dual-write only if `AGENT_REACH_SECRETS=yaml`; opt-in migrate does not auto-delete YAML.
 
 ---
 

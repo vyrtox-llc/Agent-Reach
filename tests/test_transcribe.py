@@ -716,8 +716,88 @@ class TestDownloadAudioSafety:
 
         tr.download_audio("https://youtu.be/abc123", tmp_path)
 
-        assert "youtu.be" in seen
+        assert seen.count("youtu.be") >= 2
         assert captured["cmd"][-1] == "https://youtu.be/abc123"
+        assert "http,https:curl" in captured["cmd"]
+        args_idx = captured["cmd"].index("--downloader-args")
+        assert "youtu.be:443:93.184.216.34" in captured["cmd"][args_idx + 1]
+
+    def test_skips_curl_resolve_when_curl_missing(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(tr, "_require", lambda binary: None)
+        monkeypatch.setattr(
+            tr.shutil,
+            "which",
+            lambda name: None if name == "curl" else "/usr/bin/" + name,
+        )
+        captured = {}
+
+        def fake_run(cmd, timeout=600):
+            captured["cmd"] = cmd
+            (tmp_path / "source.m4a").write_bytes(b"audio")
+
+        monkeypatch.setattr(tr, "_run", fake_run)
+        tr.download_audio("https://example.com/a.mp3", tmp_path)
+        assert "--downloader" not in captured["cmd"]
+
+    def test_allows_cdn_ip_flap_between_double_pin(self, monkeypatch, tmp_path):
+        answers = iter(["93.184.216.34", "1.1.1.1"])
+
+        def fake_getaddrinfo(host, port, *args, **kwargs):
+            ip = next(answers)
+            resolved_port = port if isinstance(port, int) else 0
+            return [
+                (
+                    __import__("socket").AF_INET,
+                    __import__("socket").SOCK_STREAM,
+                    6,
+                    "",
+                    (ip, resolved_port or 0),
+                )
+            ]
+
+        monkeypatch.setattr(
+            "agent_reach.utils.url.socket.getaddrinfo", fake_getaddrinfo
+        )
+        monkeypatch.setattr(tr, "_require", lambda binary: None)
+        captured = {}
+
+        def fake_run(cmd, timeout=600):
+            captured["cmd"] = cmd
+            (tmp_path / "source.m4a").write_bytes(b"audio")
+
+        monkeypatch.setattr(tr, "_run", fake_run)
+
+        tr.download_audio("https://cdn.example/a.mp3", tmp_path)
+        assert captured["cmd"][-1] == "https://cdn.example/a.mp3"
+
+    def test_rejects_rebind_to_private_on_second_pin(self, monkeypatch, tmp_path):
+        answers = iter(["93.184.216.34", "169.254.169.254"])
+
+        def fake_getaddrinfo(host, port, *args, **kwargs):
+            ip = next(answers)
+            resolved_port = port if isinstance(port, int) else 0
+            return [
+                (
+                    __import__("socket").AF_INET,
+                    __import__("socket").SOCK_STREAM,
+                    6,
+                    "",
+                    (ip, resolved_port or 0),
+                )
+            ]
+
+        monkeypatch.setattr(
+            "agent_reach.utils.url.socket.getaddrinfo", fake_getaddrinfo
+        )
+        monkeypatch.setattr(tr, "_require", lambda binary: None)
+
+        def should_not_run(*args, **kwargs):
+            raise AssertionError("yt-dlp must not run after private rebind")
+
+        monkeypatch.setattr(tr, "_run", should_not_run)
+
+        with pytest.raises(tr.TranscribeError, match="private|internal|SSRF"):
+            tr.download_audio("https://rebind.example/a.mp3", tmp_path)
 
     def test_rejects_hostname_that_resolves_to_metadata(self, monkeypatch, tmp_path):
         def fake_getaddrinfo(host, port, *args, **kwargs):

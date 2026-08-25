@@ -35,16 +35,36 @@ def test_twitter_doctor_does_not_start_cli_without_explicit_credentials(
     assert "浏览器" not in message or "不会" in message
 
 
-def test_twitter_doctor_still_avoids_upstream_fallback_with_saved_credentials(
+def test_twitter_doctor_still_avoids_upstream_fallback_with_env_credentials(
+    monkeypatch,
+):
+    monkeypatch.setenv("TWITTER_AUTH_TOKEN", "explicit-auth")
+    monkeypatch.setenv("TWITTER_CT0", "explicit-ct0")
+    monkeypatch.setattr(
+        "shutil.which",
+        lambda name: "/usr/local/bin/twitter" if name == "twitter" else None,
+    )
+    monkeypatch.setattr(subprocess, "run", _forbid_subprocess)
+
+    status, message = TwitterChannel().check()
+
+    assert status == "warn"
+    assert "已设置" in message or "TWITTER_AUTH_TOKEN" in message
+    assert "不会执行" in message
+
+
+def test_twitter_doctor_ignores_yaml_leftover_tokens(
     monkeypatch,
 ):
     class Config:
         def get(self, key, default=None):
             return {
-                "twitter_auth_token": "explicit-auth",
-                "twitter_ct0": "explicit-ct0",
+                "twitter_auth_token": "yaml-leftover-auth",
+                "twitter_ct0": "yaml-leftover-ct0",
             }.get(key, default)
 
+    monkeypatch.delenv("TWITTER_AUTH_TOKEN", raising=False)
+    monkeypatch.delenv("TWITTER_CT0", raising=False)
     monkeypatch.setattr(
         "shutil.which",
         lambda name: "/usr/local/bin/twitter" if name == "twitter" else None,
@@ -54,9 +74,9 @@ def test_twitter_doctor_still_avoids_upstream_fallback_with_saved_credentials(
     status, message = TwitterChannel().check(Config())
 
     assert status == "warn"
-    assert "已配置" in message
-    assert "不会执行" in message
-
+    assert "不保存" in message or "没有完整" in message
+    assert "yaml-leftover-auth" not in message
+    assert "yaml-leftover-ct0" not in message
 
 def test_reddit_doctor_does_not_create_or_refresh_missing_credentials(
     isolated_home, monkeypatch

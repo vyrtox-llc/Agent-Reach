@@ -145,10 +145,10 @@ Skillインストール後、エージェントは`agent-reach` CLIが利用可�
 ### 🍪 Cookie — 無料、2分
 
 エージェントに「Twitterのクッキーの設定を手伝って」と伝えてください —
-Cookie-Editor による手動エクスポートを案内します。保存した値は
-`agent-reach doctor` が設定の有無を確認するためだけに使われ、doctor は
-`twitter status` を実行しません。上流の `twitter` コマンドには
-`TWITTER_AUTH_TOKEN` と `TWITTER_CT0` を明示的に設定してください。
+Cookie-Editor による手動エクスポートを案内します。`agent-reach configure
+twitter-cookies` は Cookie を保存しません。`twitter` プロセスで
+`TWITTER_AUTH_TOKEN` / `TWITTER_CT0` を export する手順だけを表示します。
+doctor は環境変数のみを確認し、`twitter status` は実行しません。
 
 ### 🌐 プロキシ — 月額$1、サーバーのみ
 
@@ -254,7 +254,7 @@ channels/
 <details>
 <summary><strong>Twitter/X APIに課金せずにAIエージェントで検索するには？</strong></summary>
 
-Agent Reach は [twitter-cli](https://github.com/public-clis/twitter-cli) をCookie認証で使用します。Cookie-Editor で手動エクスポートし、`agent-reach configure twitter-cookies` の非表示入力で Agent Reach に保存します。これは doctor の設定確認用であり、doctor は上流の認証をリアルタイム検証しません。`twitter search "query" -n 10` を直接実行するプロセスには `TWITTER_AUTH_TOKEN` と `TWITTER_CT0` を明示的に渡してください。
+Agent Reach は [twitter-cli](https://github.com/public-clis/twitter-cli) をCookie認証で使用します。Cookie-Editor で手動エクスポートし、`agent-reach configure twitter-cookies` で export 手順を確認します（Agent Reach 自身は Cookie を保存しません）。doctor は環境変数のみを確認し、上流の認証をリアルタイム検証しません。`twitter search "query" -n 10` を直接実行するプロセスには `TWITTER_AUTH_TOKEN` と `TWITTER_CT0` を明示的に渡してください。
 </details>
 
 <details>

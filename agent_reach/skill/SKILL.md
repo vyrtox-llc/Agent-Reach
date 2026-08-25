@@ -74,10 +74,10 @@ bili search "query" --type video -n 5
 
 ## 需登录态的平台（按 doctor 的 active_backend 选命令）
 
-Twitter 注意：`agent-reach configure twitter-cookies` 保存的 Cookie 只供
-`doctor` 检查配置是否齐全；`doctor` 不执行 `twitter status`，也不会设置当前
-Shell。直接运行 `twitter` 前，必须在子进程环境中显式提供
-`TWITTER_AUTH_TOKEN` 和 `TWITTER_CT0`，不得在日志或命令回显中暴露值。
+Twitter 注意：`agent-reach configure twitter-cookies` **不**保存 Cookie；
+只指导你在 `twitter` 子进程环境中显式提供 `TWITTER_AUTH_TOKEN` 和
+`TWITTER_CT0`。`doctor` 只检查环境变量，不执行 `twitter status`，也不会设置当前
+Shell。不得在日志或命令回显中暴露值。
 
 小红书注意：Agent Reach 不替用户登录，也不读取浏览器 Cookie。OpenCLI 只用
 用户已有且明确控制的 Chrome 会话；没有现成会话时不要自动登录，改用

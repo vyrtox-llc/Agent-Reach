@@ -80,10 +80,10 @@ xhs feed                    # 推荐
 
 ### 认证前置条件
 
-`agent-reach configure twitter-cookies` 通过隐藏输入保存的 Cookie 只供
-`agent-reach doctor` 检查显式凭据是否齐全。`doctor` 不执行上游
-`twitter status`，也不会设置当前 Shell。运行下面任何 `twitter` 命令前，
-必须在同一个 Shell 或子进程环境中显式提供：
+`agent-reach configure twitter-cookies` **不**把 Cookie 写入 Agent Reach 配置。
+它只打印如何在同一个 Shell 或子进程里 export。`doctor` 只检查环境变量，
+不执行上游 `twitter status`，也不会设置当前 Shell。运行下面任何 `twitter` 命令前，
+必须显式提供：
 
 ```bash
 export TWITTER_AUTH_TOKEN="..."

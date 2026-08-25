@@ -127,7 +127,7 @@ AI Agent 已经能帮你写代码、改文档、管项目——但你让它去�
 >
 > 🍪 Twitter 只接受用户通过 Cookie-Editor 手工导出的内容。Agent Reach 不替用户执行小红书登录，也不读取小红书浏览器 Cookie；OpenCLI 只使用用户已经存在且明确控制的 Chrome 会话。`agent-reach configure xhs-cookies` 不会把 Cookie 注入 OpenCLI / Chrome；没有现成会话时，改用 Cookie-Editor 导出后配置 xiaohongshu-mcp / 存量工具。
 >
-> Twitter Cookie 保存后仅供 `agent-reach doctor` 检查配置是否齐全；直接运行上游 `twitter` 命令前，仍需在当前进程环境中显式设置 `TWITTER_AUTH_TOKEN` 和 `TWITTER_CT0`。
+> Twitter：`agent-reach configure twitter-cookies` **不**把 Cookie 写入 Agent Reach 配置或钥匙串；只打印如何在 `twitter` 进程里 `export TWITTER_AUTH_TOKEN` / `TWITTER_CT0`。Doctor 只看环境变量，不跑 `twitter status`。
 >
 > 🔒 Cookie 只存在你本地，不上传不外传。代码完全开源，随时可审查。
 > 💻 本地电脑不需要代理。代理只有部署在服务器上才需要（~$1/月）。
@@ -256,7 +256,7 @@ Agent Reach 在设计上重视安全：
 
 | 措施 | 说明 |
 |------|------|
-| 🔒 **凭据本地存储** | Cookie、Token 只存在你本机 `~/.agent-reach/config.yaml`，文件权限 600（仅所有者可读写），不上传不外传 |
+| 🔒 **凭据本地存储** | Token / API key 写入本机 OS 钥匙串（macOS Keychain / libsecret / Windows Credential Manager）；`~/.agent-reach/config.yaml` 只留非密钥配置与迁移残留，权限 600。Windows ACL 弱于 Keychain，勿开 `AGENT_REACH_SECRETS=yaml` 双写。不上传不外传 |
 | 🛡️ **默认安全** | `agent-reach install` 默认不修改系统；只有显式 `--system` 才安装外部工具和写入配置 |
 | 👀 **完全开源** | 代码透明，随时可审查。所有依赖工具也是开源项目 |
 | 🔍 **Dry Run** | `agent-reach install --dry-run` 预览所有操作，不做任何改动 |
@@ -285,7 +285,7 @@ Agent Reach 在设计上重视安全：
 agent-reach uninstall
 ```
 
-会清除：`~/.agent-reach/`（含所有 token/cookie）、四个 skill 根目录里的 copies
+会清除：OS 钥匙串里 `agent-reach` 服务项、`~/.agent-reach/`、四个 skill 根目录里的 copies
 （`~/.claude/skills/agent-reach/`、`~/.openclaw/skills/agent-reach/`、
 `~/.config/opencode/skills/agent-reach/`、`~/.agents/skills/agent-reach/`）、
 以及 mcporter 中的 MCP 配置。
@@ -294,7 +294,7 @@ agent-reach uninstall
 # 只预览，不实际删除
 agent-reach uninstall --dry-run
 
-# 只删 skill 文件，保留 token 配置（重装时用）
+# 只删 skill 文件，保留 YAML 与钥匙串（重装时用）
 agent-reach uninstall --keep-config
 ```
 

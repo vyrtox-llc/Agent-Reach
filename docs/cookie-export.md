@@ -32,9 +32,10 @@ agent-reach configure twitter-cookies
 agent-reach configure xhs-cookies
 ```
 
-Twitter values saved by Agent Reach are used by `agent-reach doctor` only to
-check whether explicit credentials are present. Doctor does not run
-`twitter status`. Direct `twitter` commands still require
+`agent-reach configure twitter-cookies` does **not** store cookies in Agent Reach
+config or the OS secret store. It prints how to export `TWITTER_AUTH_TOKEN` and
+`TWITTER_CT0` in the twitter process. Doctor checks those env vars only and does
+not run `twitter status`. Direct `twitter` commands still require
 `TWITTER_AUTH_TOKEN` and `TWITTER_CT0` in their process environment.
 
 This XiaoHongShu export is for xiaohongshu-mcp or a legacy tool.

@@ -93,6 +93,257 @@ _MAX_REDIRECTS = 5
 _REDIRECT_STATUSES = {301, 302, 303, 307, 308}
 
 
+def _env_proxy_url(scheme: str) -> str | None:
+    """Return the proxy URL for *scheme* from standard env vars, if any."""
+    import os
+
+    scheme = scheme.lower()
+    if scheme == "https":
+        candidates = ("HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy")
+    else:
+        candidates = ("HTTP_PROXY", "http_proxy")
+    for name in candidates:
+        value = (os.environ.get(name) or "").strip()
+        if value:
+            return value
+    return None
+
+
+def _socks_fallback_proxy_urls() -> list[str]:
+    """Return SOCKS5 URLs from ALL_PROXY / SOCKS_PROXY (deduped)."""
+    import os
+
+    found: list[str] = []
+    for name in ("ALL_PROXY", "all_proxy", "SOCKS_PROXY", "socks_proxy"):
+        value = (os.environ.get(name) or "").strip()
+        if not value:
+            continue
+        try:
+            _host, _port, _userinfo, scheme = _parse_proxy(value)
+        except ValueError:
+            continue
+        if scheme in {"socks5", "socks5h"} and value not in found:
+            found.append(value)
+    return found
+
+
+def _proxy_urls_for_request(scheme: str, host: str) -> list[str]:
+    """Primary HTTP(S)_PROXY, then SOCKS fallbacks for CONNECT-to-IP failures."""
+    if _host_in_no_proxy(host):
+        return []
+    urls: list[str] = []
+    primary = _env_proxy_url(scheme)
+    if primary:
+        urls.append(primary)
+    for socks in _socks_fallback_proxy_urls():
+        if socks not in urls:
+            urls.append(socks)
+    return urls
+
+
+def _host_in_no_proxy(host: str) -> bool:
+    """Return whether *host* matches NO_PROXY / no_proxy (best-effort)."""
+    import os
+
+    raw = (os.environ.get("NO_PROXY") or os.environ.get("no_proxy") or "").strip()
+    if not raw:
+        return False
+    host = host.lower().rstrip(".")
+    if raw == "*":
+        return True
+    for entry in raw.split(","):
+        item = entry.strip().lower().lstrip(".").rstrip(".")
+        if not item:
+            continue
+        if item == host or host.endswith("." + item):
+            return True
+    return False
+
+
+def _parse_proxy(proxy_url: str) -> tuple[str, int, str | None, str]:
+    """Parse a proxy URL into (host, port, userinfo_or_none, scheme).
+
+    Proxies may be loopback/private (local Clash etc.). Destination pinning
+    still applies to the origin host. Supported schemes: http, https, socks5,
+    socks5h (DNS still pinned locally; we CONNECT to the pin IP either way).
+    Never log userinfo.
+    """
+    candidate = str(proxy_url or "").strip()
+    if not candidate:
+        raise ValueError("proxy URL is empty")
+    if "://" not in candidate:
+        candidate = f"http://{candidate}"
+    try:
+        parsed = urlsplit(candidate)
+        host = (parsed.hostname or "").lower().rstrip(".")
+        port = parsed.port
+        scheme = (parsed.scheme or "").lower()
+    except (TypeError, ValueError) as exc:
+        raise ValueError("proxy URL is invalid") from exc
+    if scheme in {"socks", "socks4", "socks4a"}:
+        raise ValueError("only SOCKS5 proxies are supported for pinned fetch")
+    if scheme not in {"http", "https", "socks5", "socks5h"} or not host:
+        raise ValueError("proxy URL is invalid")
+    if port is None:
+        if scheme in {"https"}:
+            port = 443
+        elif scheme.startswith("socks"):
+            port = 1080
+        else:
+            port = 80
+    userinfo = None
+    if parsed.username is not None:
+        password = parsed.password or ""
+        userinfo = f"{parsed.username}:{password}"
+    return host, port, userinfo, scheme
+
+
+def _recv_exact(sock: socket.socket, n: int) -> bytes:
+    buf = b""
+    while len(buf) < n:
+        chunk = sock.recv(n - len(buf))
+        if not chunk:
+            raise OSError("proxy connection closed")
+        buf += chunk
+    return buf
+
+
+def _socks5_connect(
+    sock: socket.socket,
+    pin_ip: str,
+    target_port: int,
+    *,
+    proxy_userinfo: str | None,
+) -> None:
+    """SOCKS5 CONNECT to a DNS-pinned IP over an already-open proxy socket."""
+    import struct
+
+    if proxy_userinfo:
+        sock.sendall(b"\x05\x02\x00\x02")
+    else:
+        sock.sendall(b"\x05\x01\x00")
+    greeting = _recv_exact(sock, 2)
+    if greeting[0] != 5:
+        raise OSError("SOCKS5 proxy greeting failed")
+    method = greeting[1]
+    if method == 2:
+        if not proxy_userinfo or ":" not in proxy_userinfo:
+            raise OSError("SOCKS5 proxy requires username/password")
+        username, _, password = proxy_userinfo.partition(":")
+        user_b = username.encode("utf-8")
+        pass_b = password.encode("utf-8")
+        if len(user_b) > 255 or len(pass_b) > 255:
+            raise OSError("SOCKS5 proxy credentials too long")
+        sock.sendall(b"\x01" + bytes([len(user_b)]) + user_b + bytes([len(pass_b)]) + pass_b)
+        auth = _recv_exact(sock, 2)
+        if auth[1] != 0:
+            raise OSError("SOCKS5 proxy authentication failed")
+    elif method != 0:
+        raise OSError("SOCKS5 proxy authentication method not supported")
+
+    try:
+        addr = ipaddress.ip_address(pin_ip)
+    except ValueError as exc:
+        raise OSError("pinned destination IP is invalid") from exc
+    if isinstance(addr, ipaddress.IPv4Address):
+        atyp_and_addr = b"\x01" + addr.packed
+    else:
+        atyp_and_addr = b"\x04" + addr.packed
+    req = b"\x05\x01\x00" + atyp_and_addr + struct.pack("!H", target_port)
+    sock.sendall(req)
+    reply = _recv_exact(sock, 4)
+    if reply[0] != 5 or reply[1] != 0:
+        raise OSError("SOCKS5 CONNECT to pinned IP failed")
+    atyp = reply[3]
+    if atyp == 1:
+        _recv_exact(sock, 4 + 2)
+    elif atyp == 4:
+        _recv_exact(sock, 16 + 2)
+    elif atyp == 3:
+        ln = _recv_exact(sock, 1)[0]
+        _recv_exact(sock, ln + 2)
+    else:
+        raise OSError("SOCKS5 CONNECT reply is invalid")
+
+
+def _http_proxy_connect(
+    sock: socket.socket,
+    pin_ip: str,
+    target_port: int,
+    *,
+    proxy_userinfo: str | None,
+) -> None:
+    """HTTP CONNECT to a DNS-pinned IP over an already-open proxy socket."""
+    import base64
+
+    if ":" in pin_ip and not pin_ip.startswith("["):
+        connect_authority = f"[{pin_ip}]:{target_port}"
+    else:
+        connect_authority = f"{pin_ip}:{target_port}"
+    lines = [
+        f"CONNECT {connect_authority} HTTP/1.1",
+        f"Host: {connect_authority}",
+        "Proxy-Connection: keep-alive",
+    ]
+    if proxy_userinfo:
+        token = base64.b64encode(proxy_userinfo.encode("utf-8")).decode("ascii")
+        lines.append(f"Proxy-Authorization: Basic {token}")
+    lines.append("")
+    lines.append("")
+    sock.sendall("\r\n".join(lines).encode("ascii"))
+    buffer = b""
+    while b"\r\n\r\n" not in buffer and len(buffer) < 65536:
+        chunk = sock.recv(4096)
+        if not chunk:
+            break
+        buffer += chunk
+    header_blob = buffer.split(b"\r\n\r\n", 1)[0]
+    status_line = header_blob.split(b"\r\n", 1)[0].decode("latin-1", "replace")
+    parts = status_line.split()
+    if len(parts) < 2 or not parts[1].isdigit() or int(parts[1]) != 200:
+        code = parts[1] if len(parts) > 1 else "unknown"
+        raise OSError(
+            f"proxy CONNECT to pinned IP failed (HTTP {code}); "
+            "proxy must allow CONNECT to raw destination IPs "
+            "(Clash/V2Ray HTTP port usually does; try socks5:// or tun)"
+        )
+
+
+def _proxy_connect(
+    proxy_host: str,
+    proxy_port: int,
+    pin_ip: str,
+    target_port: int,
+    *,
+    timeout: float,
+    proxy_userinfo: str | None,
+    proxy_scheme: str = "http",
+) -> socket.socket:
+    """Tunnel to a DNS-pinned destination IP via HTTP CONNECT or SOCKS5.
+
+    Always targets the pinned IP (not the hostname) so the proxy cannot
+    re-resolve a rebinding name. TLS SNI/Host stay on the original hostname
+    in the caller.
+    """
+    sock = socket.create_connection((proxy_host, proxy_port), timeout=timeout)
+    try:
+        if proxy_scheme == "https":
+            context = ssl.create_default_context()
+            sock = context.wrap_socket(sock, server_hostname=proxy_host)
+        if proxy_scheme in {"socks5", "socks5h"}:
+            _socks5_connect(
+                sock, pin_ip, target_port, proxy_userinfo=proxy_userinfo
+            )
+        else:
+            _http_proxy_connect(
+                sock, pin_ip, target_port, proxy_userinfo=proxy_userinfo
+            )
+        return sock
+    except BaseException:
+        sock.close()
+        raise
+
+
 def _is_globally_routable(
     addr: ipaddress.IPv4Address | ipaddress.IPv6Address,
 ) -> bool:
@@ -222,7 +473,39 @@ def _http_get_once(
     if parsed.query:
         path = f"{path}?{parsed.query}"
 
-    sock = socket.create_connection((pin_ip, port), timeout=timeout)
+    proxy_urls = _proxy_urls_for_request(scheme, host)
+    sock: socket.socket | None = None
+    last_error: OSError | None = None
+    if not proxy_urls:
+        sock = socket.create_connection((pin_ip, port), timeout=timeout)
+    else:
+        for proxy_url in proxy_urls:
+            try:
+                proxy_host, proxy_port, proxy_userinfo, proxy_scheme = _parse_proxy(
+                    proxy_url
+                )
+            except ValueError as exc:
+                last_error = OSError(str(exc))
+                continue
+            try:
+                sock = _proxy_connect(
+                    proxy_host,
+                    proxy_port,
+                    pin_ip,
+                    port,
+                    timeout=timeout,
+                    proxy_userinfo=proxy_userinfo,
+                    proxy_scheme=proxy_scheme,
+                )
+                break
+            except OSError as exc:
+                last_error = exc
+                # Prefer the next candidate (usually ALL_PROXY socks5) when an
+                # HTTP proxy refuses CONNECT to a raw pinned IP.
+                continue
+        if sock is None:
+            raise last_error or OSError("proxy tunnel failed")
+
     conn: http.client.HTTPConnection | None = None
     try:
         if scheme == "https":
@@ -262,6 +545,12 @@ def fetch_pinned_bytes(
     TLS uses the original hostname for SNI and certificate checks. Redirects
     are re-normalized and re-pinned. urllib is not used for the TCP/TLS hop
     because it would resolve the hostname again.
+
+    Honors ``HTTP(S)_PROXY`` / ``http(s)_proxy`` (and SOCKS5 / ``socks5h``)
+    with a tunnel to the pinned destination IP (proxy may be loopback/private).
+    If an HTTP proxy refuses CONNECT to a raw IP, falls back to
+    ``ALL_PROXY`` / ``SOCKS_PROXY`` when those are SOCKS5. Respects
+    ``NO_PROXY``. Never logs proxy credentials.
     """
     current = url
     for _ in range(_MAX_REDIRECTS + 1):

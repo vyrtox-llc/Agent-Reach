@@ -69,7 +69,7 @@ These are controls to keep. Tests exist. Phase work must not weaken them.
 
 **Impact.** A hostname that later resolves to `169.254.169.254` or loopback can still be fetched by Jina or yt-dlp.
 
-**Fix.** Done: shared helper resolves DNS, pins to global unicast, connects to that IP with TLS name intact. Applied to web, V2EX, Xueqiu, Bilibili doctor probe. Transcribe rejects a bad first hop and still passes a hostname to yt-dlp (documented TOCTOU). Tests with a fake resolver.
+**Fix.** Done: shared helper resolves DNS, pins to global unicast, connects to that IP with TLS name intact (`HTTP(S)_PROXY` / SOCKS5 tunnel to the pinned IP; `ALL_PROXY` SOCKS fallback when HTTP CONNECT-to-IP fails). Applied to web, V2EX, Xueqiu, Bilibili doctor probe. Transcribe double-pins and uses `curl --resolve` for the http(s) download hop when curl is present. **Accepted residual:** yt-dlp extractors that contact additional hosts after the user URL. Tests with a fake resolver + proxy tunnel cases.
 
 **Approve.** Mechanism (pin vs stop fetching). New helper is internal, not a public API, unless we export it.
 

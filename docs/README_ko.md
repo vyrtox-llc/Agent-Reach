@@ -145,10 +145,10 @@ Skill이 설치된 후, 에이전트는 `agent-reach` CLI 사용 가능 여부�
 ### 🍪 Cookies — 무료, 2분
 
 에이전트에 "Twitter 쿠키 설정 도와줘"라고 말하세요. Cookie-Editor 수동
-내보내기 절차를 안내합니다. 저장한 값은 `agent-reach doctor`가 명시적
-자격 증명의 존재 여부를 확인할 때만 사용하며, doctor는 `twitter status`를
-실행하지 않습니다. 직접 실행하는 `twitter` 프로세스에는
-`TWITTER_AUTH_TOKEN`과 `TWITTER_CT0`를 명시적으로 전달해야 합니다.
+내보내기 절차를 안내합니다. `agent-reach configure twitter-cookies`는
+쿠키를 저장하지 않으며, `twitter` 프로세스에서 `TWITTER_AUTH_TOKEN` /
+`TWITTER_CT0`를 export 하는 방법만 안내합니다. doctor는 환경 변수만
+확인하고 `twitter status`를 실행하지 않습니다.
 
 ### 🌐 Proxy — 월 $1, 서버 전용
 
@@ -255,7 +255,7 @@ channels/
 <details>
 <summary><strong>AI 에이전트로 Twitter/X를 API 비용 없이 검색하는 방법?</strong></summary>
 
-Agent Reach는 cookie 기반 인증을 사용하는 [twitter-cli](https://github.com/public-clis/twitter-cli)를 사용합니다. Cookie-Editor로 수동 내보낸 뒤 `agent-reach configure twitter-cookies`의 숨김 입력으로 저장합니다. 이 값은 doctor의 설정 확인용이며 실시간 인증 성공을 뜻하지 않습니다. `twitter search "query" -n 10`을 직접 실행하는 프로세스에는 `TWITTER_AUTH_TOKEN`과 `TWITTER_CT0`를 명시적으로 전달해야 합니다.
+Agent Reach는 cookie 기반 인증을 사용하는 [twitter-cli](https://github.com/public-clis/twitter-cli)를 사용합니다. Cookie-Editor로 수동 내보낸 뒤 `agent-reach configure twitter-cookies`로 export 절차를 확인하세요(Agent Reach 자체는 쿠키를 저장하지 않음). doctor는 환경 변수만 확인하며 실시간 인증을 검증하지 않습니다. `twitter search "query" -n 10`을 직접 실행하는 프로세스에는 `TWITTER_AUTH_TOKEN`과 `TWITTER_CT0`를 명시적으로 전달해야 합니다.
 </details>
 
 <details>

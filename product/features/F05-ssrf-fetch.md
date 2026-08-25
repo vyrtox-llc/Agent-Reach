@@ -2,7 +2,7 @@
 
 **Parent:** none · **Phase:** 2 · **Status:** done (DNS-pin) · **Audit:** dns-rebinding, owned-fetchers, rss-substring
 
-Agent Reach is not a fetcher. In-process HTTP is `web.py`, `v2ex.py`, `xueqiu.py`, and the Bilibili doctor probe. `transcribe.py` hands URLs to yt-dlp after a first-hop DNS-pin. Guard: `normalize_public_http_url` plus `pin_hostname` / `fetch_pinned_bytes` (ADR-008 option 1). yt-dlp still receives a hostname (residual TOCTOU).
+Agent Reach is not a fetcher. In-process HTTP is `web.py`, `v2ex.py`, `xueqiu.py`, and the Bilibili doctor probe. `transcribe.py` double-pins hostnames immediately before yt-dlp and, when curl is present, pins the http(s) download hop with `curl --resolve`. Guard: `normalize_public_http_url` plus `pin_hostname` / `fetch_pinned_bytes` (ADR-008 option 1). Pinned fetch honors `HTTP(S)_PROXY` and SOCKS5 (with `ALL_PROXY` fallback). **Accepted residual:** yt-dlp multi-host extractors.
 
 ADR-008 pick (2026-08-24): DNS-pin. Keep `WebChannel.read`. Do not export `AgentReach.read`.
 
@@ -76,10 +76,10 @@ ADR-008 pick (2026-08-24): DNS-pin. Keep `WebChannel.read`. Do not export `Agent
 
 - **Parent:** F5
 - **Phase:** 2
-- **Status:** done (first-hop pin; hostname still passed)
+- **Status:** done (double-pin + curl `--resolve` for http/https hop; multi-host extractor residual accepted)
 - **Goal:** `transcribe` does not pass a rebinding hostname through a literal-IP-only check.
-- **Files:** `agent_reach/transcribe.py:214-247` (literal IP + denylist), `:250-270` (hands URL to yt-dlp). `agent_reach/cli.py` `transcribe` subcommand. `tests/test_transcribe.py`. YouTube channel `channels/youtube.py` does not fetch; captions are yt-dlp from the skill.
-- **Acceptance:** Apply F5.1 before exec. If pin cannot bind yt-dlp to an IP+Host, document residual TOCTOU and still reject bad first resolve. Do not disable transcribe.
+- **Files:** `agent_reach/transcribe.py` (`_double_pin_before_yt_dlp`, `_yt_dlp_download_cmd`), `agent_reach/cli.py` `transcribe` subcommand. `tests/test_transcribe.py`. YouTube channel `channels/youtube.py` does not fetch; captions are yt-dlp from the skill.
+- **Acceptance:** Apply F5.1 twice immediately before exec; both must be global-unicast (identical IP sets not required). Prefer `curl --resolve` for the http(s) download hop when curl exists. Document accepted residual for yt-dlp multi-host extractors. Do not disable transcribe.
 - **Tests:** fake resolver in transcribe tests. Existing provider tests stay.
 - **Dependencies:** F5.1
 - **Risks:** yt-dlp may ignore IP+Host. Then the honest bar is first-hop reject + docs, or stop wrapping URL transcribe and require a local file.

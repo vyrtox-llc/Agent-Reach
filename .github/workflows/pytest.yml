@@ -90,3 +90,15 @@ jobs:
           /tmp/smoke/bin/pip install --quiet dist/*.whl
           /tmp/smoke/bin/agent-reach version
           cd /tmp && /tmp/smoke/bin/python -c "import agent_reach; from importlib.resources import files; assert (files('agent_reach')/'skill'/'SKILL.md').is_file(); print('SKILL.md ships in site-packages OK')"
+
+  # Single required check for branch protection: matrix + Windows + wheel.
+  ci-gate:
+    if: always()
+    needs: [test, windows-test, wheel-gate]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require all CI jobs succeeded
+        run: |
+          test "${{ needs.test.result }}" = "success"
+          test "${{ needs.windows-test.result }}" = "success"
+          test "${{ needs.wheel-gate.result }}" = "success"

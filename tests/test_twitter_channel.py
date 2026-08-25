@@ -28,9 +28,26 @@ def test_twitter_cli_without_explicit_auth_is_unverified():
     assert channel.active_backend is None
 
 
-def test_saved_credentials_are_recognised_without_starting_upstream(
+def test_env_credentials_are_recognised_without_starting_upstream(
     monkeypatch,
 ):
+    monkeypatch.setenv("TWITTER_AUTH_TOKEN", "saved-auth-token")
+    monkeypatch.setenv("TWITTER_CT0", "saved-ct0")
+
+    with patch("shutil.which", side_effect=_which("twitter")), patch(
+        "subprocess.run"
+    ) as run:
+        channel = TwitterChannel()
+        status, message = channel.check()
+
+    assert status == "warn"
+    assert "TWITTER_AUTH_TOKEN" in message or "已设置" in message
+    assert "不会执行" in message
+    assert channel.active_backend is None
+    run.assert_not_called()
+
+
+def test_yaml_leftover_credentials_are_ignored_by_doctor(monkeypatch):
     config = Mock()
     config.get.side_effect = lambda key: {
         "twitter_auth_token": "saved-auth-token",
@@ -46,8 +63,7 @@ def test_saved_credentials_are_recognised_without_starting_upstream(
         status, message = channel.check(config)
 
     assert status == "warn"
-    assert "已配置" in message
-    assert "不会执行" in message
+    assert "不保存" in message or "没有完整" in message
     assert channel.active_backend is None
     run.assert_not_called()
     assert "TWITTER_AUTH_TOKEN" not in os.environ

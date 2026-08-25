@@ -20,9 +20,9 @@ Counts from code, 2026-08-13, v1.5.0: **15** channels in `agent_reach/channels/_
 | F1 | Contract truth | 1 | done | mixed | [F01](features/F01-contract-truth.md) |
 | F2 | Install/update hygiene | 1–2 | phase-1 done | mixed | [F02](features/F02-install-hygiene.md) |
 | F3 | Doctor honesty | 1 | phase-1 done | JSON field blocked | [F03](features/F03-doctor-honesty.md) |
-| F4 | Cookie/auth UX | 1–4 | planned | mixed | [F04](features/F04-cookie-auth-ux.md) |
+| F4 | Cookie/auth UX | 1–4 | phase-3 Twitter B done | mixed | [F04](features/F04-cookie-auth-ux.md) |
 | F5 | SSRF / fetch | 2 | done (DNS-pin) | pin vs stop | [F05](features/F05-ssrf-fetch.md) |
-| F6 | Secrets | 3 | planned | keyring vs OS CLI | [F06](features/F06-secrets.md) |
+| F6 | Secrets | 3 | done | OS CLI (no keyring) | [F06](features/F06-secrets.md) |
 | F7 | Read-only policy | 4 | planned | gh wrapper | [F07](features/F07-read-only-policy.md) |
 | F8 | Channel productization | 1+4 | phase-1 docs done | `--channels=all` | [F08](features/F08-channel-productization.md) |
 | F9 | MCP | 1+keep | F9.2 done | no new tools | [F09](features/F09-mcp.md) |
@@ -62,7 +62,7 @@ Counts from code, 2026-08-13, v1.5.0: **15** channels in `agent_reach/channels/_
 | F4.1 | Kill paste-to-agent in cookie-export + guides | F4 | 2 | done | no |
 | F4.2 | Stdin/getpass is the only documented path | F4 | 2 | done | no |
 | F4.3 | XHS header-string `httpOnly`/`secure` | F4 | 2 | done | no |
-| F4.4 | Twitter unused YAML tokens | F4 | 3 | **blocked-on-Pepe** | yes (A vs B) |
+| F4.4 | Twitter unused YAML tokens | F4 | 3 | done (B stop store) | yes (A vs B) |
 | F4.5 | `--from-browser` twitter/xhs stay blocked | F4 | 4 | planned (lock+gate) | yes if extra flag |
 | F4.6 | Positional secret argv discourage | F4 | 2 | done (docs + warning) | yes if removing positional |
 | F5.1 | DNS-pin helper vs stop in-process fetch | F5 | 2 | done (DNS-pin) | yes (mechanism; picked) |
@@ -71,12 +71,12 @@ Counts from code, 2026-08-13, v1.5.0: **15** channels in `agent_reach/channels/_
 | F5.4 | Xueqiu owned fetch + CookieJar | F5 | 2 | done (pinned) | no (follows F5.1) |
 | F5.5 | yt-dlp / transcribe URL checks | F5 | 2 | done (first-hop pin) | no (follows F5.1) |
 | F5.6 | RSS substring `can_handle` | F5 | 2 | done | no |
-| F6.1 | Keychain as product path, YAML fallback | F6 | 3 | planned | no (direction frozen) |
-| F6.2 | `keyring` extra vs OS CLI wrappers | F6 | 3 | **blocked-on-Pepe** | yes (dep) |
-| F6.3 | YAML → keychain migration | F6 | 3 | **blocked-on-Pepe** | yes (behavior) |
-| F6.4 | File perms 0600 stay as fallback | F6 | 3 | planned (keep) | no |
-| F6.5 | `--sync-legacy-twitter` stays off by default | F6 | 3 | planned (lock) | no |
-| F6.6 | Uninstall deletes keychain items we created | F6 | 3 | planned | no |
+| F6.1 | Keychain as product path, YAML fallback | F6 | 3 | done | no (direction frozen) |
+| F6.2 | `keyring` extra vs OS CLI wrappers | F6 | 3 | done (OS CLI) | yes (dep) |
+| F6.3 | YAML → keychain migration | F6 | 3 | done | yes (behavior) |
+| F6.4 | File perms 0600 stay as fallback | F6 | 3 | done (keep) | no |
+| F6.5 | `--sync-legacy-twitter` stays off by default | F6 | 3 | done (lock) | no |
+| F6.6 | Uninstall deletes keychain items we created | F6 | 3 | done | no |
 | F7.1 | Skill GitHub read-only wording | F7 | 4 | planned | no (policy; listed in ROADMAP) |
 | F7.2 | `agent-reach gh` allowlist wrapper | F7 | 4 | **blocked-on-Pepe** | yes (public CLI) |
 | F7.3 | OpenCLI blast radius (no write teaching) | F7 | 4 | planned | no |
@@ -96,7 +96,7 @@ Counts from code, 2026-08-13, v1.5.0: **15** channels in `agent_reach/channels/_
 | F11.2 | Doctor tests (prose, not new JSON field) | F11 | 1 | done | no |
 | F11.3 | Install/constraints tests | F11 | 1 | done | no |
 | F11.4 | DNS-pin / cookie-paste / xhs flag tests | F11 | 2 | done | no |
-| F11.5 | Keychain + twitter path tests | F11 | 3 | planned | no |
+| F11.5 | Keychain + twitter path tests | F11 | 3 | done | no |
 | F11.6 | gh allowlist tests | F11 | 4 | planned | no |
 | F12.1 | Drop skill check-update nudge | F12 | 1 | done | no (YES encoded) |
 | F12.2 | Keep `check-update` as user-invoked | F12 | 1 | done (keep) | no |

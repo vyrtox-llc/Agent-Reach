@@ -2,7 +2,7 @@
 
 This directory is the execution package for turning Agent Reach from a working personal installer into a production-grade **local-first** product. It is not the runtime. Runtime stays in `agent_reach/`.
 
-**Current phase: 2 (DNS-pin in code on `phase-2-security-hardening`).** Phase 1 is on `main` via PR #1. F5.1 is DNS-pin (ADR-008). Do not merge to main until tests are green and Pepe asks.
+**Current phase: 3 done on `phase-3-secrets`.** Phase 1–2 are on `main`. Do not start Phase 4 until Pepe asks.
 
 Canvas: [Agent Reach product plan](/Users/pepe/.cursor/projects/Users-pepe-Development-Agent-Reach/canvases/agent-reach-product-plan.canvas.tsx)
 
@@ -63,4 +63,4 @@ No edits to `agent_reach/` Python, CLI, tests, `pyproject.toml`, or skill runtim
 
 ## Next execution entry
 
-Phase 1 is on `main`. Phase 2 is on `phase-2-security-hardening` (DNS-pin picked). Do not add `--i-understand-system` unless asked.
+Phase 3 is on `phase-3-secrets`. Phase 4 needs Pepe picks: F7.2 (gh wrapper vs skill-only), F8.2 (`--channels=all`).

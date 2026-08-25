@@ -121,20 +121,22 @@ Do not pin `pyproject.toml` ranges without asking.
 
 ## Secrets migration (Phase 3)
 
-Algorithm:
+Algorithm (implemented):
 
-1. `configure` writes keychain; also writes YAML only if `AGENT_REACH_SECRETS=yaml` (or until migration complete: write both, prefer keychain on read).
-2. `Config.get` for sensitive keys: keychain → YAML → env (env already uppercase fallback, `config.py:159-168`).
-3. `uninstall` deletes keychain items we created, plus `~/.agent-reach/`.
-4. Tests use an in-memory backend.
+1. `configure` writes keychain; also writes YAML only if `AGENT_REACH_SECRETS=yaml`.
+2. `Config.get` for sensitive keys: keychain → YAML → env (env already uppercase fallback).
+3. Twitter keys are never-store (ADR-004 B): env only; `configure twitter-cookies` does not persist.
+4. `agent-reach migrate-secrets` copies YAML leftovers into the store; does not delete YAML.
+5. `uninstall` deletes keychain items we created (service `agent-reach`), plus `~/.agent-reach/`. `--keep-config` keeps both.
+6. Tests use an in-memory backend.
 
 Sensitive key names already used by `to_dict()` markers: key, token, password, proxy, cookie, secret, session, sessdata, csrf, auth, cred, ct0.
 
-Service name (proposed, confirm at implement): `agent-reach`. Account: the config key (`twitter_auth_token`, `github_token`, …).
+Service name: `agent-reach`. Account: the config key (`github_token`, `groq_api_key`, …).
 
-Twitter ADR-004 A: wrapper `agent-reach twitter -- search ...` that execs `twitter` with `twitter_cli_child_env` + keychain. Agent skill uses the wrapper. PATH `twitter` still works if the user exported env themselves.
+Windows: Credential Manager via ctypes (`cmdkey` cannot read secret blobs). Per-user DPAPI; weaker ACL than Keychain/libsecret. Documented: do not enable `AGENT_REACH_SECRETS=yaml` on shared Windows machines.
 
-Twitter ADR-004 B: `configure twitter-cookies` refuses to save; prints "export TWITTER_AUTH_TOKEN=... in the twitter process only". Doctor checks env, not YAML.
+macOS: Security.framework via ctypes (not `security -w`) so secrets never appear in process argv.
 
 ## GitHub wrapper (Phase 4)
 
@@ -156,9 +158,10 @@ Implemented in `utils/url.py`: `pin_hostname`, `pin_public_http_url`, `fetch_pin
 2. `getaddrinfo` the host (skipped for literal IPs).
 3. Every A/AAAA must be global unicast (`ipaddress.is_global`, plus CGNAT `100.64.0.0/10` and IPv4-mapped unwrap).
 4. Fail closed if any address is bad (prevents happy-eyeballs to metadata).
-5. Our fetchers connect to the pinned IP with original SNI/Host. yt-dlp still receives a hostname after a successful first-hop pin (residual TOCTOU).
+5. Our fetchers connect to the pinned IP with original SNI/Host. Honor `HTTP(S)_PROXY` and `socks5://` / `socks5h://` via a tunnel to the **pinned destination IP** (proxy may be private/loopback; SOCKS4 rejected; respect `NO_PROXY`; never log proxy credentials). If HTTP CONNECT to a raw IP fails, fall back to `ALL_PROXY` / `SOCKS_PROXY` when those are SOCKS5.
+6. yt-dlp/transcribe double-pins immediately before exec; both answers must be global-unicast (CDN IP set changes allowed). When `curl` is on PATH, the http(s) download hop uses `curl --resolve` to the pinned IP. **Accepted residual:** yt-dlp extractors that fan out to other hosts (YouTube API / googlevideo, etc.) still resolve those names inside yt-dlp.
 
-Tests: `tests/test_dns_pin.py` with fake `getaddrinfo`.
+Tests: `tests/test_dns_pin.py` with fake `getaddrinfo` + HTTP/SOCKS5 tunnel + ALL_PROXY fallback cases.
 
 ## What not to touch
 

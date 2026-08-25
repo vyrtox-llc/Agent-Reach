@@ -72,7 +72,7 @@ def test_xiaohongshu_opencli_and_export_boundaries_are_truthful():
 
 
 def test_twitter_operational_docs_explain_the_environment_boundary():
-    """Saved cookies help doctor only; direct twitter commands need env vars."""
+    """Twitter cookies are process-env only; doctor never runs twitter status."""
     operational_docs = (
         ROOT / "README.md",
         ROOT / "docs" / "README_en.md",
@@ -100,15 +100,14 @@ def test_twitter_operational_docs_explain_the_environment_boundary():
     assert "Export → Header String" in twitter_guide
     assert "cookie JSON" not in twitter_guide
     assert "复制全部" not in twitter_guide
+    assert "不会" in twitter_guide and "写入" in twitter_guide
 
     for expected in (
         "--sync-legacy-twitter",
-        "~/.agent-reach/config.yaml",
         "~/.config/xfetch/session.json",
         "~/.config/bird/credentials.env",
     ):
         assert expected in twitter_guide
-    assert "默认只写" in twitter_guide
     assert "不会自动删除" in twitter_guide
 
     rendered_as_verified = (

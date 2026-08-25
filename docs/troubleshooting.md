@@ -22,8 +22,9 @@ agent-reach configure --from-browser chrome --platform xueqiu
 
 **原因：** twitter-cli 需要 `TWITTER_AUTH_TOKEN` 和 `TWITTER_CT0`
 环境变量才能访问 Twitter API。`agent-reach configure twitter-cookies`
-保存的值只供 doctor 检查配置是否齐全；doctor 不执行上游认证，也不会设置当前
-Shell。如果你的网络环境需要代理才能访问 x.com，还需要配置代理。
+**不**保存这些值；只打印如何在 twitter 进程里 export。doctor 只检查环境变量，
+不执行上游认证，也不设置当前 Shell。如果你的网络环境需要代理才能访问 x.com，
+还需要配置代理。
 
 **解决方案：**
 
@@ -36,6 +37,8 @@ export HTTP_PROXY="http://user:pass@host:port"
 export HTTPS_PROXY="http://user:pass@host:port"
 twitter search "test" -n 1
 ```
+
+Agent Reach 自带的 DNS-pin 拉取（web / V2EX / 雪球等）会走 `HTTP(S)_PROXY` 或 `socks5://` / `socks5h://`，并对**已 pin 的目标 IP** 做隧道（不会让代理再解析主机名）。若 HTTP 代理拒绝 `CONNECT` 到裸 IP，会自动尝试 `ALL_PROXY` / `SOCKS_PROXY` 里的 SOCKS5；仍失败再换 Clash HTTP 端口或开 tun。
 
 ### 方案 2：使用全局代理工具
 
